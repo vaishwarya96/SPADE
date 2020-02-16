@@ -105,6 +105,8 @@ class NLayerDiscriminator(BaseNetwork):
             input_nc += 1
         if not opt.no_instance:
             input_nc += 1
+
+        input_nc += 3
         return input_nc
 
     def forward(self, input):

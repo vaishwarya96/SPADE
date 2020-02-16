@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.networks.sync_batchnorm import SynchronizedBatchNorm2d
 import torch.nn.utils.spectral_norm as spectral_norm
-
+from torch.autograd import Variable
 
 # Returns a function that creates a normalization function
 # that does not condition on semantic map
@@ -23,6 +23,7 @@ def get_nonspade_norm_layer(opt, norm_type='instance'):
     # this function will be returned
     def add_norm_layer(layer):
         nonlocal norm_type
+        subnorm_type = 'none'
         if norm_type.startswith('spectral'):
             layer = spectral_norm(layer)
             subnorm_type = norm_type[len('spectral'):]
@@ -84,14 +85,52 @@ class SPADE(nn.Module):
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
+        dilation = int(norm_nc/8)
 
         pw = ks // 2
-        self.mlp_shared = nn.Sequential(
-            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw),
-            nn.ReLU()
+        self.mlp_shared_2 = nn.Sequential(
+            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=2, dilation = 2),
+            nn.LeakyReLU(0.2)
         )
-        self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
-        self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
+        self.mlp_gamma_2 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=2, dilation = 2)
+        self.mlp_beta_2 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=2, dilation = 2)
+        
+
+
+        self.mlp_shared_4 = nn.Sequential(
+            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=4, dilation = 4),
+            nn.LeakyReLU(0.2)
+        )
+        self.mlp_gamma_4 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=4, dilation = 4)
+        self.mlp_beta_4 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=4, dilation = 4)
+        
+
+
+        self.mlp_shared_8 = nn.Sequential(
+            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=8, dilation = 8),
+            nn.LeakyReLU(0.2)
+        )
+        self.mlp_gamma_8 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=8, dilation = 8)
+        self.mlp_beta_8 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=8, dilation = 8)
+        
+
+
+        self.mlp_shared_16 = nn.Sequential(
+            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=16, dilation = 16),
+            nn.LeakyReLU(0.2)
+        )
+        self.mlp_gamma_16 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=16, dilation = 16)
+        self.mlp_beta_16 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=16, dilation = 16)
+
+        self.mlp_shared = nn.Sequential(
+            nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw, dilation = 1),
+            nn.LeakyReLU(0.2)
+        )
+        self.mlp_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw, dilation = 1)
+        self.mlp_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw, dilation = 1)
+
+
+
 
     def forward(self, x, segmap):
 
@@ -100,11 +139,31 @@ class SPADE(nn.Module):
 
         # Part 2. produce scaling and bias conditioned on semantic map
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
-        actv = self.mlp_shared(segmap)
-        gamma = self.mlp_gamma(actv)
-        beta = self.mlp_beta(actv)
+        segmap_shape = segmap.shape[2]
+
+        if segmap_shape == 16:
+            actv = self.mlp_shared_2(segmap)
+            gamma = self.mlp_gamma_2(actv)
+            beta = self.mlp_beta_2(actv)
+        if segmap_shape == 32 or segmap_shape == 64:
+            actv = self.mlp_shared_4(segmap)
+            gamma = self.mlp_gamma_4(actv)
+            beta = self.mlp_beta_4(actv)
+
+        if segmap_shape == 128 or segmap_shape == 256:
+            actv = self.mlp_shared_8(segmap)
+            gamma = self.mlp_gamma_8(actv)
+            beta = self.mlp_beta_8(actv)
+
+        if segmap_shape == 512 or segmap_shape == 1024:
+            actv = self.mlp_shared_16(segmap)
+            gamma = self.mlp_gamma_16(actv)
+            beta = self.mlp_beta_16(actv)
+
+
+        #print(normalized.shape, gamma.shape, beta.shape)
 
         # apply scale and bias
-        out = normalized * (1 + gamma) + beta
+        out = normalized * (1+ gamma) + beta
 
         return out

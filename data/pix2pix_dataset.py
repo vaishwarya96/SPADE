@@ -7,7 +7,8 @@ from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 import util.util as util
 import os
-
+import cv2
+from torch.autograd import Variable
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -19,24 +20,30 @@ class Pix2pixDataset(BaseDataset):
     def initialize(self, opt):
         self.opt = opt
 
-        label_paths, image_paths, instance_paths = self.get_paths(opt)
+        label_paths, image_paths, input_paths, instance_paths = self.get_paths(opt)
 
         util.natural_sort(label_paths)
         util.natural_sort(image_paths)
+        util.natural_sort(input_paths)
         if not opt.no_instance:
             util.natural_sort(instance_paths)
 
         label_paths = label_paths[:opt.max_dataset_size]
         image_paths = image_paths[:opt.max_dataset_size]
+        input_paths = input_paths[:opt.max_dataset_size]
         instance_paths = instance_paths[:opt.max_dataset_size]
 
         if not opt.no_pairing_check:
-            for path1, path2 in zip(label_paths, image_paths):
+            for path1, path2, path3 in zip(label_paths, image_paths, input_paths):
                 assert self.paths_match(path1, path2), \
                     "The label-image pair (%s, %s) do not look like the right pair because the filenames are quite different. Are you sure about the pairing? Please see data/pix2pix_dataset.py to see what is going on, and use --no_pairing_check to bypass this." % (path1, path2)
+                assert self.paths_match(path1, path3), \
+                    "The label-image pair (%s, %s) do not look like the right pair because the filenames are quite different. Are you sure about the pairing? Please see data/pix2pix_dataset.py to see what is going on, and use --no_pairing_check to bypass this." % (path1, path3)
+
 
         self.label_paths = label_paths
         self.image_paths = image_paths
+        self.input_paths = input_paths
         self.instance_paths = instance_paths
 
         size = len(self.label_paths)
@@ -45,9 +52,10 @@ class Pix2pixDataset(BaseDataset):
     def get_paths(self, opt):
         label_paths = []
         image_paths = []
+        input_paths =[]
         instance_paths = []
         assert False, "A subclass of Pix2pixDataset must override self.get_paths(self, opt)"
-        return label_paths, image_paths, instance_paths
+        return label_paths, image_paths, input_paths, instance_paths
 
     def paths_match(self, path1, path2):
         filename1_without_ext = os.path.splitext(os.path.basename(path1))[0]
@@ -62,8 +70,12 @@ class Pix2pixDataset(BaseDataset):
         transform_label = get_transform(self.opt, params, method=Image.NEAREST, normalize=False)
         label_tensor = transform_label(label) * 255.0
         label_tensor[label_tensor == 255] = self.opt.label_nc  # 'unknown' is opt.label_nc
-
-        # input image (real images)
+        '''
+        mean = 0.0; stddev = 0.001;
+        noise = Variable(label_tensor.data.new(label_tensor.size()).normal_(mean, stddev))
+        label_tensor = label_tensor + noise
+        '''
+        # target image (real images)
         image_path = self.image_paths[index]
         assert self.paths_match(label_path, image_path), \
             "The label_path %s and image_path %s don't match." % \
@@ -73,6 +85,16 @@ class Pix2pixDataset(BaseDataset):
 
         transform_image = get_transform(self.opt, params)
         image_tensor = transform_image(image)
+
+        # input image 
+        input_path = self.input_paths[index]
+        assert self.paths_match(label_path, input_path), \
+                "The label_path %s and input path %s don't match." %\
+                (label_path, input_path)
+        input_img = Image.open(input_path)
+
+        transform_input = get_transform(self.opt, params)
+        input_tensor = transform_input(input_img)
 
         # if using instance maps
         if self.opt.no_instance:
@@ -86,10 +108,13 @@ class Pix2pixDataset(BaseDataset):
             else:
                 instance_tensor = transform_label(instance)
 
+        #print(image_tensor - input_tensor)
+
         input_dict = {'label': label_tensor,
                       'instance': instance_tensor,
                       'image': image_tensor,
                       'path': image_path,
+                      'input': input_tensor
                       }
 
         # Give subclasses a chance to modify the final output
