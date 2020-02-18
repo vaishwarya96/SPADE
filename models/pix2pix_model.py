@@ -110,7 +110,7 @@ class Pix2PixModel(torch.nn.Module):
     # |data|: dictionary of the input data
     
     def gen_perlin(self,w,h):
-        fct = OpenSimplex(np.random.randint(1))
+        fct = OpenSimplex(np.random.randint(1000000))
         heights = np.zeros((w,h))
         for i in range(w):
             for j in range(h):
