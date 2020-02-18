@@ -8,6 +8,7 @@ import models.networks as networks
 import util.util as util
 from torch.autograd import Variable
 import numpy as np
+from opensimplex import OpenSimplex
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -35,6 +36,7 @@ class Pix2PixModel(torch.nn.Module):
                 self.criterionVGG = networks.VGGLoss(self.opt.gpu_ids)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
+                self.criterionContent = networks.ContentLoss(self.opt.gpu_ids)
 
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module
@@ -106,14 +108,30 @@ class Pix2PixModel(torch.nn.Module):
     # preprocess the input, such as moving the tensors to GPUs and
     # transforming the label map to one-hot encoding
     # |data|: dictionary of the input data
+    
+    def gen_perlin(self,w,h):
+        fct = OpenSimplex(np.random.randint(1))
+        heights = np.zeros((w,h))
+        for i in range(w):
+            for j in range(h):
+                heights[i,j] = (fct.noise2d(i,j)+1)/2
+        return heights
 
     def preprocess_input(self, data):
         # move to GPU and change data types
 
         #print(data['image'] - data['input'])
         #data['label'] = data['label'].long()
-        mean = 0.5; stddev = 0.1;
-        noise = Variable(data['label'].data.new(data['label'].size()).normal_(mean,stddev)).cuda()
+
+        #Gaussian noise
+        #mean = 0.5; stddev = 0.1;
+        #noise = Variable(data['label'].data.new(data['label'].size()).normal_(mean,stddev)).cuda()
+
+        #Perlin noise
+        #h,w = data['label'].size()[2], data['label'].size()[3]
+        #noise = self.gen_perlin(w,h)
+        #noise_tensor = torch.FloatTensor(noise).cuda()
+
         data['label'] = data['label'].long()
 
         if self.use_gpu():
@@ -129,7 +147,7 @@ class Pix2PixModel(torch.nn.Module):
             else self.opt.label_nc
         input_label = self.FloatTensor(bs, nc, h, w).zero_()
         input_semantics = input_label.scatter_(1, label_map, 1.0)
-        input_semantics = (0.5 + noise/2) * input_semantics
+        #input_semantics = (0.5 + noise_tensor/2) * input_semantics
         #print(input_semantics)
 
         # concatenate instance map if it exists
@@ -146,8 +164,11 @@ class Pix2PixModel(torch.nn.Module):
         fake_image, KLD_loss = self.generate_fake(
             input_semantics, real_image, input_image, compute_kld_loss=self.opt.use_vae)
 
+
+ 
         if self.opt.use_vae:
             G_losses['KLD'] = KLD_loss
+            G_losses['Content'] = self.criterionContent(fake_image, input_image)
 
         pred_fake, pred_real = self.discriminate(
             input_semantics, fake_image, real_image, input_image)
@@ -203,6 +224,14 @@ class Pix2PixModel(torch.nn.Module):
             #print(z.shape)
             if compute_kld_loss:
                 KLD_loss = self.KLDLoss(mu, logvar) * self.opt.lambda_kld
+
+
+        h, w = self.opt.crop_size, self.opt.crop_size
+        noise = self.gen_perlin(w , h)
+        noise_tensor = torch.FloatTensor(noise).cuda()
+
+        input_semantics = (0.5 + noise_tensor/2) * input_semantics
+        #print(input_semantics)
 
         fake_image = self.netG(input_semantics, z=z)
 
