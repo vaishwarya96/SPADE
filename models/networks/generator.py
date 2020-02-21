@@ -126,15 +126,19 @@ class DualGenerator(BaseNetwork):
         b1x3 = self.surface_up_2(b1x3, seg)
         b1x4 = self.up(b1x3)
         b1x4 = self.surface_up_3(b1x4, seg)
-
+        
+        surface = b1x4
         if self.opt.num_upsampling_layers == 'most':
             b1x5 = self.up(b1x4)
             b1x5 = self.surface_up_4(b1x5, seg)
+            surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))
+        else:
+            surface = self.surface_conv_img(F.leaky_relu(b1x4, 2e-1))
 
-        surface = self.conv_img(F.leaky_relu(b1x5, 2e-1))
         surface = F.tanh(surface)
 
         #Branch2 (color generator)
+
         b2x1 = self.color_up_0(x, seg, b1x1)
         b2x2 = self.up(b2x1)
         b2x2 = self.color_up_1(b2x2, seg, b1x2)
@@ -142,13 +146,15 @@ class DualGenerator(BaseNetwork):
         b2x3 = self.color_up_2(b2x3, seg, b1x3)
         b2x4 = self.up(b2x3)
         b2x4 = self.color_up_3(b2x4, seg, b1x4)
-
+        
+        color = b2x4
         if self.opt.num_upsampling_layers == 'most':
             b2x5 = self.up(b2x4)
             b2x5 = self.color_up_4(b2x5, seg, b1x5)
-
-        color = self.conv_img(F.leaky_relu(b2x5, 2e-1))
-        color = F.tanh(surface)
+            color = self.color_conv_img(F.leaky_relu(b2x5, 2e-1))
+        else: 
+            color = self.color_conv_img(F.leaky_relu(b2x4, 2e-1))
+        color = F.tanh(color)
 
 
 

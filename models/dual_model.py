@@ -180,11 +180,10 @@ class DualModel(torch.nn.Module):
             input_semantics, fake_surface_image, surface_image, input_image)
 
         pred_fake_color, pred_real_color = self.color_discriminate(
-                input_semantics, fake_color_image, color_image, input_image)
-        #Surface generator loss
+                input_semantics, fake_color_image, color_image, input_image)        #Surface generator loss
         G_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
                                             for_discriminator=False)
-        G_losses['surface_L1'] = self.criterionGAN(fake_surface_image, fake_color_image) * 10          #Include it in a variable
+        G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, fake_color_image) * 10          #Include it in a variable
 
         #Color generator loss
         G_losses['GAN_color'] = self.criterionGAN(pred_fake_color, True, 
@@ -212,15 +211,15 @@ class DualModel(torch.nn.Module):
         D_losses = {}
         with torch.no_grad():
             fake_surface_image,_,_ = self.generate_fake(input_semantics, surface_image, input_image)
-            fake_surface_image = fake_image.detach()
+            fake_surface_image = fake_surface_image.detach()
             fake_surface_image.requires_grad_()
 
-        pred_fake, pred_real = self.discriminate_surface(
+        pred_fake, pred_real = self.surface_discriminate(
             input_semantics, fake_surface_image, surface_image, input_image)
 
-        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
+        D_losses['D1_Fake'] = self.criterionGAN(pred_fake, False,
                                                for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,
+        D_losses['D1_real'] = self.criterionGAN(pred_real, True,
                                                for_discriminator=True)
         return D_losses
 
@@ -231,12 +230,12 @@ class DualModel(torch.nn.Module):
             fake_color_image = fake_color_image.detach()
             fake_color_image.requires_grad_()
 
-        pred_fake, pred_real = self.discriminate_color(
-            input_semantics, fake_color_image, color_image)
+        pred_fake, pred_real = self.color_discriminate(
+            input_semantics, fake_color_image, color_image, input_image)
 
-        D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
+        D_losses['D2_Fake'] = self.criterionGAN(pred_fake, False,
                                                for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,
+        D_losses['D2_real'] = self.criterionGAN(pred_real, True,
                                                for_discriminator=True)
 
         return D_losses
@@ -290,10 +289,10 @@ class DualModel(torch.nn.Module):
 
         return pred_fake, pred_real
 
-    def color_discriminate(self, input_semantics, fake_image, real_image):
+    def color_discriminate(self, input_semantics, fake_image, real_image, input_image):
 
-        fake_concat = torch.cat([input_semantics, fake_image], dim=1)
-        real_concat = torch.cat([input_semantics, real_image], dim=1)
+        fake_concat = torch.cat([input_semantics, fake_image, input_image], dim=1)
+        real_concat = torch.cat([input_semantics, real_image, input_image], dim=1)
 
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate

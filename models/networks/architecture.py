@@ -48,8 +48,7 @@ class ModifiedSPADEResnetBlock(nn.Module):
                 self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
         else:
-
-            num_channels = int(fout/2) + opt.semantic_nc
+            num_channels = fout + opt.semantic_nc
             self.norm_0 = SPADE(spade_config_str, fin, num_channels)
             self.norm_1 = SPADE(spade_config_str, fmiddle, num_channels)
             if self.learned_shortcut:
@@ -57,7 +56,9 @@ class ModifiedSPADEResnetBlock(nn.Module):
 
     # note the resnet block with SPADE also takes in |seg|,
     # the semantic segmentation map as input
-    def forward(self, x, seg, other_channels):
+    def forward(self, x, seg, other_channels=None):
+
+        #print(other_channels)
         x_s = self.shortcut(x, seg, other_channels)
 
         dx = self.conv_0(self.actvn(self.norm_0(x, seg, other_channels)))
@@ -67,7 +68,9 @@ class ModifiedSPADEResnetBlock(nn.Module):
 
         return out
 
-    def shortcut(self, x, seg, other_channels):
+    def shortcut(self, x, seg, other_channels=None):
+
+        #print(x.shape,seg.shape,other_channels.shape)
         if self.learned_shortcut:
             x_s = self.conv_s(self.norm_s(x, seg, other_channels))
         else:

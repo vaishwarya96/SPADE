@@ -131,7 +131,7 @@ class SPADE(nn.Module):
 
 
 
-    def forward(self, x, segmap, other_channels=None):
+    def forward(self, x, segmap, other_channels=[]):
 
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
@@ -139,12 +139,13 @@ class SPADE(nn.Module):
         # Part 2. produce scaling and bias conditioned on semantic map
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
         segmap_shape = segmap.shape[2]
-
-        if other_channels == None:
+        #print(other_channels)
+        
+        if len(other_channels)==0:
             all_layers = segmap
         else:
-            all_layers = torch.cat((other_channels, segmap), dim=0)
-        
+            all_layers = torch.cat((other_channels, segmap), dim=1)
+
         gamma = 0
         beta = 0
         if segmap_shape == 16:
