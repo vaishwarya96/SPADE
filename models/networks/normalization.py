@@ -139,9 +139,14 @@ class SPADE(nn.Module):
         # Part 2. produce scaling and bias conditioned on semantic map
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
         segmap_shape = segmap.shape[2]
-        #all_layers = torch.cat((other_channels, segmap), dim=0)
-        all_layers = segmap
 
+        if other_channels == None:
+            all_layers = segmap
+        else:
+            all_layers = torch.cat((other_channels, segmap), dim=0)
+        
+        gamma = 0
+        beta = 0
         if segmap_shape == 16:
             actv = self.mlp_shared_2(all_layers)
             gamma = self.mlp_gamma_2(actv)

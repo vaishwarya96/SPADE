@@ -130,7 +130,7 @@ class Pix2pixDataset(BaseDataset):
                       'instance': instance_tensor,
                       'surface': surface_tensor,
                       'color' : color_tensor,
-                      'path': radius_path,
+                      #'path': surface_path,
                       'input': input_tensor
                       }
 

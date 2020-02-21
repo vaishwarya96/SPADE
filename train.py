@@ -9,7 +9,7 @@ from options.train_options import TrainOptions
 import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
-from trainers.pix2pix_trainer import Pix2PixTrainer
+from trainers.pix2pix_trainer import Pix2PixTrainer, DualTrainer
 
 # parse options
 opt = TrainOptions().parse()
@@ -21,7 +21,7 @@ print(' '.join(sys.argv))
 dataloader = data.create_dataloader(opt)
 
 # create trainer for our model
-trainer = Pix2PixTrainer(opt)
+trainer = DualTrainer(opt)
 
 # create tool for counting iterations
 iter_counter = IterationCounter(opt, len(dataloader))
