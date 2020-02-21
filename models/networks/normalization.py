@@ -85,7 +85,6 @@ class SPADE(nn.Module):
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
-        dilation = int(norm_nc/8)
 
         pw = ks // 2
         self.mlp_shared_2 = nn.Sequential(
@@ -132,7 +131,7 @@ class SPADE(nn.Module):
 
 
 
-    def forward(self, x, segmap):
+    def forward(self, x, segmap, other_channels=None):
 
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
@@ -140,23 +139,25 @@ class SPADE(nn.Module):
         # Part 2. produce scaling and bias conditioned on semantic map
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
         segmap_shape = segmap.shape[2]
+        #all_layers = torch.cat((other_channels, segmap), dim=0)
+        all_layers = segmap
 
         if segmap_shape == 16:
-            actv = self.mlp_shared_2(segmap)
+            actv = self.mlp_shared_2(all_layers)
             gamma = self.mlp_gamma_2(actv)
             beta = self.mlp_beta_2(actv)
         if segmap_shape == 32 or segmap_shape == 64:
-            actv = self.mlp_shared_4(segmap)
+            actv = self.mlp_shared_4(all_layers)
             gamma = self.mlp_gamma_4(actv)
             beta = self.mlp_beta_4(actv)
 
         if segmap_shape == 128 or segmap_shape == 256:
-            actv = self.mlp_shared_8(segmap)
+            actv = self.mlp_shared_8(all_layers)
             gamma = self.mlp_gamma_8(actv)
             beta = self.mlp_beta_8(actv)
 
         if segmap_shape == 512 or segmap_shape == 1024:
-            actv = self.mlp_shared_16(segmap)
+            actv = self.mlp_shared_16(all_layers)
             gamma = self.mlp_gamma_16(actv)
             beta = self.mlp_beta_16(actv)
 

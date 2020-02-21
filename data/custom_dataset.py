@@ -26,10 +26,12 @@ class CustomDataset(Pix2pixDataset):
 
         parser.add_argument('--label_dir', type=str, required=True,
                             help='path to the directory that contains label images')
-        parser.add_argument('--image_dir', type=str, required=True,
-                            help='path to the directory that contains photo images')
+        parser.add_argument('--surface_dir', type=str, required=True,
+                            help='path to the directory that contains surface images')
+        parser.add_argument('--color_dir', type=str, required=True,
+                            help='path to the directory that contains bark color images')
         parser.add_argument('--input_dir', type =str, required=True, 
-                            help='path to the input image directory')
+                            help='path to the input image (smoothened surface) directory')
         parser.add_argument('--instance_dir', type=str, default='',
                             help='path to the directory that contains instance maps. Leave black if not exists')
         return parser
@@ -38,8 +40,12 @@ class CustomDataset(Pix2pixDataset):
         label_dir = opt.label_dir
         label_paths = make_dataset(label_dir, recursive=False, read_cache=True)
 
-        image_dir = opt.image_dir
-        image_paths = make_dataset(image_dir, recursive=False, read_cache=True)
+        surface_dir = opt.surface_dir
+        surface_paths = make_dataset(surface_dir, recursive=False, read_cache=True)
+
+        color_dir = opt.color_dir
+        color_paths = make_dataset(color_dir, recursive=False, read_cache=True)
+
 
         input_dir = opt.input_dir
         input_paths = make_dataset(input_dir, recursive=False, read_cache=True)
@@ -51,6 +57,6 @@ class CustomDataset(Pix2pixDataset):
         else:
             instance_paths = []
 
-        assert len(label_paths) == len(image_paths) == len(input_paths), "The #images in %s and %s do not match. Is there something wrong?"
+        assert len(label_paths) == len(surface_paths) == len(color_paths) == len(input_paths), "The #images in %s and %s do not match. Is there something wrong?"
         
-        return label_paths, image_paths, input_paths, instance_paths
+        return label_paths, surface_paths, color_paths, input_paths, instance_paths
