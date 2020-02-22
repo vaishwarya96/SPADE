@@ -35,8 +35,8 @@ class DualGenerator(BaseNetwork):
         else:
             #Otherwise, we make the network deterministic by starting with 
             #downsampled segmentation map instead of random z
-            self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
-            
+            self.fc_color = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
+            self.fc_surface = nn.Conv2d(3, 16 * nf, 3, padding=1)
         self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                            #Second common
 
         self.G_middle_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Third common
@@ -90,8 +90,7 @@ class DualGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, input, z=None):
-        seg = input
+    def forward(self, seg, input_image, z=None):
 
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
@@ -102,24 +101,42 @@ class DualGenerator(BaseNetwork):
             x = x.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
         else:
             # we downsample segmap and run convolution
-            x = F.interpolate(seg, size=(self.sh, self.sw))
-            x = self.fc(x)
+            x1 = F.interpolate(input_image, size=(self.sh, self.sw))
+            x1 = self.fc_surface(x1)
+            x2 = F.interpolate(seg, size=(self.sh, self.sw))
+            x2 = self.fc_color(x2)
 
-        x = self.head_0(x, seg)
 
-        x = self.up(x)
-        x = self.G_middle_0(x, seg)
+        x1 = self.head_0(x1, seg)
+
+        x1 = self.up(x1)
+        x1 = self.G_middle_0(x1, seg)
 
         if self.opt.num_upsampling_layers == 'more' or \
            self.opt.num_upsampling_layers == 'most':
-            x = self.up(x)
+            x1 = self.up(x1)
 
-        x = self.G_middle_1(x, seg)                   
+        x1 = self.G_middle_1(x1, seg)                   
 
-        x = self.up(x)                                   #Common layers upto this
+        x1 = self.up(x1)                                   #Common layers upto this
+
+
+        x2 = self.head_0(x2, seg)
+
+        x2 = self.up(x2)
+        x2 = self.G_middle_0(x2, seg)
+
+        if self.opt.num_upsampling_layers == 'more' or \
+           self.opt.num_upsampling_layers == 'most':
+            x2 = self.up(x2)
+
+        x2 = self.G_middle_1(x2, seg)                   
+
+        x2 = self.up(x2)                                   #Common layers upto this
+
 
         #Branch1 (surface generator)
-        b1x1 = self.surface_up_0(x, seg)
+        b1x1 = self.surface_up_0(x1, seg)
         b1x2 = self.up(b1x1)
         b1x2 = self.surface_up_1(b1x2, seg)
         b1x3 = self.up(b1x2)
@@ -139,7 +156,7 @@ class DualGenerator(BaseNetwork):
 
         #Branch2 (color generator)
 
-        b2x1 = self.color_up_0(x, seg, b1x1)
+        b2x1 = self.color_up_0(x2, seg, b1x1)
         b2x2 = self.up(b2x1)
         b2x2 = self.color_up_1(b2x2, seg, b1x2)
         b2x3 = self.up(b2x2)
