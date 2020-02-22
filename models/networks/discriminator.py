@@ -16,7 +16,7 @@ class MultiscaleDiscriminator(BaseNetwork):
     def modify_commandline_options(parser, is_train):
         parser.add_argument('--netD_subarch', type=str, default='n_layer',
                             help='architecture of each discriminator')
-        parser.add_argument('--num_D', type=int, default=2,
+        parser.add_argument('--num_D', type=int, default=1,
                             help='number of discriminators to be used in multiscale')
         opt, _ = parser.parse_known_args()
 
@@ -106,7 +106,10 @@ class NLayerDiscriminator(BaseNetwork):
         if not opt.no_instance:
             input_nc += 1
 
-        input_nc += 3
+        input_nc += 2
+
+        input_nc = opt.input_nc
+
         return input_nc
 
     def forward(self, input):
