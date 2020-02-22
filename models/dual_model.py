@@ -183,7 +183,7 @@ class DualModel(torch.nn.Module):
                 input_semantics, fake_color_image, color_image, input_image)        #Surface generator loss
         G_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
                                             for_discriminator=False)
-        G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, fake_color_image) * 10          #Include it in a variable
+        G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
 
         #Color generator loss
         G_losses['GAN_color'] = self.criterionGAN(pred_fake_color, True, 

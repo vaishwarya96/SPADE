@@ -148,6 +148,7 @@ class SPADE(nn.Module):
 
         gamma = 0
         beta = 0
+        '''
         if segmap_shape == 16:
             actv = self.mlp_shared_2(all_layers)
             gamma = self.mlp_gamma_2(actv)
@@ -166,6 +167,11 @@ class SPADE(nn.Module):
             actv = self.mlp_shared_16(all_layers)
             gamma = self.mlp_gamma_16(actv)
             beta = self.mlp_beta_16(actv)
+
+        '''
+        actv = self.mlp_shared(all_layers)
+        gamma = self.mlp_gamma(actv)
+        beta = self.mlp_beta(actv)
 
 
         #print(normalized.shape, gamma.shape, beta.shape)
