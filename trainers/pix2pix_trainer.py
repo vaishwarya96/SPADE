@@ -26,18 +26,25 @@ class DualTrainer():
 
         self.generated = None
         if opt.isTrain:
-            self.optimizer_G, self.optimizer_D1, self.optimizer_D2 = \
+            self.optimizer_G1, self.optimizer_G2, self.optimizer_D1, self.optimizer_D2 = \
                 self.dual_model_on_one_gpu.create_optimizers(opt)
             self.old_lr = opt.lr
 
     def run_generator_one_step(self, data):
-        self.optimizer_G.zero_grad()
-        g_losses, generated_surface, generated_color = self.dual_model(data, mode='generator')
-        g_loss = sum(g_losses.values()).mean()
-        g_loss.backward()
-        self.optimizer_G.step()
-        self.g_losses = g_losses
+        self.optimizer_G1.zero_grad()
+        g1_losses, generated_surface = self.dual_model(data, mode='surface_generator')
+        g1_loss = sum(g1_losses.values()).mean()
+        g1_loss.backward()
+        self.optimizer_G1.step()
+        self.g1_losses = g1_losses
         self.generated_surface = generated_surface
+
+        self.optimizer_G2.zero_grad()
+        g2_losses, generated_color = self.dual_model(data, mode='color_generator')
+        g2_loss = sum(g2_losses.values()).mean()
+        g2_loss.backward()
+        self.optimizer_G2.step()
+        self.g2_losses = g2_losses
         self.generated_color = generated_color
 
     def run_discriminator_one_step(self, data):
@@ -57,7 +64,7 @@ class DualTrainer():
 
 
     def get_latest_losses(self):
-        return {**self.g_losses, **self.d1_losses, **self.d2_losses}
+        return {**self.g1_losses, **self.g2_losses, **self.d1_losses, **self.d2_losses}
 
     def get_latest_generated(self):
         return self.generated_surface, self.generated_color
@@ -93,8 +100,13 @@ class DualTrainer():
             for param_group in self.optimizer_D2.param_groups:
                 param_group['lr'] = new_lr_D
 
-            for param_group in self.optimizer_G.param_groups:
+            for param_group in self.optimizer_G1.param_groups:
                 param_group['lr'] = new_lr_G
+
+            for param_group in self.optimizer_G2.param_groups:
+                param_group['lr'] = new_lr_G
+
+
             print('update learning rate: %f -> %f' % (self.old_lr, new_lr))
             self.old_lr = new_lr
 

@@ -14,7 +14,7 @@ from models.networks.architecture import ModifiedSPADEResnetBlock as ModifiedSPA
 from models.networks.architecture import NormalResnetBlock as NormalResnetBlock
 
 
-class DualGenerator(BaseNetwork):
+class SurfaceGenerator(BaseNetwork):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         parser.set_defaults(norm_G='spectralspadesyncbatch3x3')
@@ -33,24 +33,15 @@ class DualGenerator(BaseNetwork):
         if opt.use_vae:
             # In case of VAE, we will sample from random z vector
             self.fc_surface = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)                   #First Common layer
-            self.fc_color = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
         else:
             #Otherwise, we make the network deterministic by starting with 
             #downsampled segmentation map instead of random z
-            self.fc_color = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
             self.fc_surface = nn.Conv2d(3, 16 * nf, 3, padding=1)
         self.head_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                            #Second common
 
         self.G_middle_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                       # Third common
         self.G_middle_1_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                       # Fourth common
         
-        
-        self.head_0_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                            #Second common
-
-        self.G_middle_0_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Third common
-        self.G_middle_1_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Fourth common
-
-
         
         #Surface geneator layers
         self.surface_up_0 = NormalResnetBlock(16 * nf, 8 * nf, opt)
@@ -66,6 +57,118 @@ class DualGenerator(BaseNetwork):
 
         self.surface_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
 
+
+        final_nc = nf
+
+        self.up = nn.Upsample(scale_factor=2)
+
+    def compute_latent_vector_size(self, opt):
+        if opt.num_upsampling_layers == 'normal':
+            num_up_layers = 5
+        elif opt.num_upsampling_layers == 'more':
+            num_up_layers = 6
+        elif opt.num_upsampling_layers == 'most':
+            num_up_layers = 7
+        else:
+            raise ValueError('opt.num_upsampling_layers [%s] not recognized' %
+                             opt.num_upsampling_layers)
+
+        sw = opt.crop_size // (2**num_up_layers)
+        sh = round(sw / opt.aspect_ratio)
+
+        return sw, sh
+
+    def forward(self, seg, input_image, z=None):
+        
+        layers = []
+        if self.opt.use_vae:
+            # we sample z from unit normal and reshape the tensor
+            if z is None:
+                z = torch.randn(input.size(0), self.opt.z_dim,
+                                dtype=torch.float32, device=input.get_device())
+            x1 = self.fc_surface(z)
+            x1 = x1.view(-1, 16 * self.opt.ngf, self.sh, self.sw)
+        else:
+            # we downsample segmap and run convolution
+            x1 = F.interpolate(input_image, size=(self.sh, self.sw))
+            x1 = self.fc_surface(x1)
+
+
+        x1 = self.head_0_surface(x1)
+
+        x1 = self.up(x1)
+        x1 = self.G_middle_0_surface(x1)
+
+        if self.opt.num_upsampling_layers == 'more' or \
+           self.opt.num_upsampling_layers == 'most':
+            x1 = self.up(x1)
+
+        x1 = self.G_middle_1_surface(x1)                   
+
+        x1 = self.up(x1)                                   #Common layers upto this
+
+
+     
+        #Branch1 (surface generator)
+        b1x1 = self.surface_up_0(x1)
+        layers.append(b1x1)
+
+        b1x2 = self.up(b1x1)
+        b1x2 = self.surface_up_1(b1x2)
+        layers.append(b1x2)
+
+        b1x3 = self.up(b1x2)
+        b1x3 = self.surface_up_2(b1x3)
+        layers.append(b1x3)
+
+        b1x4 = self.up(b1x3)
+        b1x4 = self.surface_up_3(b1x4)
+        layers.append(b1x4)
+
+        surface = b1x4
+        if self.opt.num_upsampling_layers == 'most':
+            b1x5 = self.up(b1x4)
+            b1x5 = self.surface_up_4(b1x5)
+            layers.append(b1x5)
+            surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))
+        else:
+            surface = self.surface_conv_img(F.leaky_relu(b1x4, 2e-1))
+
+        surface = F.tanh(surface)
+
+
+        return surface, layers
+
+
+
+class ColorGenerator(BaseNetwork):
+    @staticmethod
+    def modify_commandline_options(parser, is_train):
+        parser.set_defaults(norm_G='spectralspadesyncbatch3x3')
+        parser.add_argument('--num_upsampling_layers', choices=('normal', 'more', 'most'), default='normal', 
+                            help="If 'more', adds upsampling layer between the two middle resnet blocks. If 'most', also add one more upsampling + resnet layer at the end of the generator")
+
+        return parser
+
+    def __init__(self, opt):
+        super().__init__()
+        self.opt = opt
+        nf = opt.ngf
+
+        self.sw, self.sh = self.compute_latent_vector_size(opt)
+
+        if opt.use_vae:
+            # In case of VAE, we will sample from random z vector
+            self.fc_color = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)            
+        else:
+            #Otherwise, we make the network deterministic by starting with 
+            #downsampled segmentation map instead of random z
+            self.fc_color = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)            
+       
+        self.head_0_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                           
+
+        self.G_middle_0_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       
+        self.G_middle_1_color = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       
 
         #Color generator layers
         extra_channels = True  #Extra channels come from the surface generator branch
@@ -99,8 +202,9 @@ class DualGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, seg, input_image, z=None):
-
+    def forward(self, seg, surface_layers, z=None):
+        
+        '''
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
@@ -112,22 +216,10 @@ class DualGenerator(BaseNetwork):
             # we downsample segmap and run convolution
             x1 = F.interpolate(input_image, size=(self.sh, self.sw))
             x1 = self.fc_surface(x1)
+        '''
         x2 = F.interpolate(seg, size=(self.sh, self.sw))
         x2 = self.fc_color(x2)
 
-
-        x1 = self.head_0_surface(x1)
-
-        x1 = self.up(x1)
-        x1 = self.G_middle_0_surface(x1)
-
-        if self.opt.num_upsampling_layers == 'more' or \
-           self.opt.num_upsampling_layers == 'most':
-            x1 = self.up(x1)
-
-        x1 = self.G_middle_1_surface(x1)                   
-
-        x1 = self.up(x1)                                   #Common layers upto this
 
 
         x2 = self.head_0_color(x2, seg)
@@ -144,39 +236,20 @@ class DualGenerator(BaseNetwork):
         x2 = self.up(x2)                                   #Common layers upto this
 
 
-        #Branch1 (surface generator)
-        b1x1 = self.surface_up_0(x1)
-        b1x2 = self.up(b1x1)
-        b1x2 = self.surface_up_1(b1x2)
-        b1x3 = self.up(b1x2)
-        b1x3 = self.surface_up_2(b1x3)
-        b1x4 = self.up(b1x3)
-        b1x4 = self.surface_up_3(b1x4)
-        
-        surface = b1x4
-        if self.opt.num_upsampling_layers == 'most':
-            b1x5 = self.up(b1x4)
-            b1x5 = self.surface_up_4(b1x5)
-            surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))
-        else:
-            surface = self.surface_conv_img(F.leaky_relu(b1x4, 2e-1))
-
-        surface = F.tanh(surface)
-
         #Branch2 (color generator)
 
-        b2x1 = self.color_up_0(x2, seg, b1x1)
+        b2x1 = self.color_up_0(x2, seg, surface_layers[0])
         b2x2 = self.up(b2x1)
-        b2x2 = self.color_up_1(b2x2, seg, b1x2)
+        b2x2 = self.color_up_1(b2x2, seg, surface_layers[1])
         b2x3 = self.up(b2x2)
-        b2x3 = self.color_up_2(b2x3, seg, b1x3)
+        b2x3 = self.color_up_2(b2x3, seg, surface_layers[2])
         b2x4 = self.up(b2x3)
-        b2x4 = self.color_up_3(b2x4, seg, b1x4)
+        b2x4 = self.color_up_3(b2x4, seg, surface_layers[3])
         
         color = b2x4
         if self.opt.num_upsampling_layers == 'most':
             b2x5 = self.up(b2x4)
-            b2x5 = self.color_up_4(b2x5, seg, b1x5)
+            b2x5 = self.color_up_4(b2x5, seg, surface_layers[4])
             color = self.color_conv_img(F.leaky_relu(b2x5, 2e-1))
         else: 
             color = self.color_conv_img(F.leaky_relu(b2x4, 2e-1))
@@ -184,10 +257,7 @@ class DualGenerator(BaseNetwork):
 
 
 
-        return surface, color
-
-
-
+        return color
 
 
 class SPADEGenerator(BaseNetwork):

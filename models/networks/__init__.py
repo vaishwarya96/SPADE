@@ -48,8 +48,9 @@ def create_network(cls, opt):
 
 
 def define_G(opt):
-    netG_cls = find_network_using_name(opt.netG, 'generator')
-    return create_network(netG_cls, opt)
+    netG1_cls = find_network_using_name('surface', 'generator')
+    netG2_cls = find_network_using_name('color', 'generator')
+    return create_network(netG1_cls, opt), create_network(netG2_cls, opt)
 
 
 def define_D(opt):

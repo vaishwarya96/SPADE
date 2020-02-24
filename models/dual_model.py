@@ -19,7 +19,7 @@ class DualModel(torch.nn.Module):
         self.ByteTensor = torch.cuda.ByteTensor if self.use_gpu() \
             else torch.ByteTensor
 
-        self.netG, self.netD1, self.netD2, self.netE = self.initialize_networks(opt)
+        self.netG1, self.netG2, self.netD1, self.netD2, self.netE = self.initialize_networks(opt)
 
 
         # set loss functions
@@ -40,10 +40,14 @@ class DualModel(torch.nn.Module):
     def forward(self, data, mode):
         input_semantics, surface_image, color_image, input_image = self.preprocess_input(data)
 
-        if mode == 'generator':
-            g_loss, generated_surface, generated_color = self.compute_generator_loss(
+        if mode == 'surface_generator':
+            g_loss, _, generated_surface, _ = self.compute_generator_loss(
                 input_semantics, surface_image, color_image, input_image)
-            return g_loss, generated_surface, generated_color
+            return g_loss, generated_surface
+        if mode == 'color_generator':
+            _, g_loss, _, generated_color = self.compute_generator_loss(
+                input_semantics, surface_image, color_image, input_image)
+            return g_loss, generated_color
         elif mode == 'surface_discriminator':
             d1_loss = self.compute_surface_discriminator_loss(
                 input_semantics, surface_image, input_image)
@@ -64,9 +68,10 @@ class DualModel(torch.nn.Module):
             raise ValueError("|mode| is invalid")
 
     def create_optimizers(self, opt):
-        G_params = list(self.netG.parameters())
+        G1_params = list(self.netG1.parameters())
+        G2_params = list(self.netG2.parameters())
         if opt.use_vae:
-            G_params += list(self.netE.parameters())
+            G1_params += list(self.netE.parameters())
         if opt.isTrain:
             D1_params = list(self.netD1.parameters())
             D2_params = list(self.netD2.parameters())
@@ -75,16 +80,18 @@ class DualModel(torch.nn.Module):
         if opt.no_TTUR:
             G_lr, D_lr = opt.lr, opt.lr
         else:
-            G_lr, D_lr = opt.lr / 4, opt.lr * 2
+            G_lr, D_lr = opt.lr / 2, opt.lr * 2
 
-        optimizer_G = torch.optim.Adam(G_params, lr=G_lr, betas=(beta1, beta2))
+        optimizer_G1 = torch.optim.Adam(G1_params, lr=G_lr, betas=(beta1, beta2))
+        optimizer_G2 = torch.optim.Adam(G2_params, lr=G_lr, betas=(beta1, beta2))
         optimizer_D1 = torch.optim.Adam(D1_params, lr=D_lr, betas=(beta1, beta2))
         optimizer_D2 = torch.optim.Adam(D2_params, lr=D_lr, betas=(beta1, beta2))
 
-        return optimizer_G, optimizer_D1, optimizer_D2
+        return optimizer_G1, optimizer_G2, optimizer_D1, optimizer_D2
 
     def save(self, epoch):
-        util.save_network(self.netG, 'G', epoch, self.opt)
+        util.save_network(self.netG1, 'G1', epoch, self.opt)
+        util.save_network(self.netG2, 'G2', epoch, self.opt)
         util.save_network(self.netD1, 'D1', epoch, self.opt)
         util.save_network(self.netD2, 'D2', epoch, self.opt)
         if self.opt.use_vae:
@@ -95,7 +102,7 @@ class DualModel(torch.nn.Module):
     ############################################################################
 
     def initialize_networks(self, opt):
-        netG = networks.define_G(opt)
+        netG1, netG2 = networks.define_G(opt)
         opt.input_nc = 6
         netD1 = networks.define_D(opt) if opt.isTrain else None
         opt.input_nc = 7
@@ -103,14 +110,15 @@ class DualModel(torch.nn.Module):
         netE = networks.define_E(opt) if opt.use_vae else None
 
         if not opt.isTrain or opt.continue_train:
-            netG = util.load_network(netG, 'G', opt.which_epoch, opt)
+            netG1 = util.load_network(netG1, 'G1', opt.which_epoch, opt)
+            netG2 = util.load_network(netG2, 'G2', opt.which_epoch, opt)
             if opt.isTrain:
                 netD1 = util.load_network(netD1, 'D1', opt.which_epoch, opt)
                 netD2 = util.load_network(netD2, 'D2', opt.which_epoch, opt)
             if opt.use_vae:
                 netE = util.load_network(netE, 'E', opt.which_epoch, opt)
 
-        return netG, netD1, netD2, netE
+        return netG1, netG2, netD1, netD2, netE
 
     # preprocess the input, such as moving the tensors to GPUs and
     # transforming the label map to one-hot encoding
@@ -167,7 +175,8 @@ class DualModel(torch.nn.Module):
         return input_semantics, data['surface'], data['color'], data['input']
 
     def compute_generator_loss(self, input_semantics, surface_image, color_image, input_image):
-        G_losses = {}
+        G1_losses = {}
+        G2_losses = {}
 
         fake_surface_image, fake_color_image, KLD_loss = self.generate_fake(
             input_semantics, color_image, input_image, compute_kld_loss=self.opt.use_vae)
@@ -175,7 +184,7 @@ class DualModel(torch.nn.Module):
 
 
         if self.opt.use_vae:
-            G_losses['KLD'] = KLD_loss
+            G1_losses['KLD'] = KLD_loss
             #G_losses['Content'] = self.criterionContent(fake_image, input_image)
 
         pred_fake_surface, pred_real_surface = self.surface_discriminate(
@@ -183,8 +192,10 @@ class DualModel(torch.nn.Module):
 
         pred_fake_color, pred_real_color = self.color_discriminate(
                 input_semantics, fake_color_image, color_image, input_image)        #Surface generator loss
-        G_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
-                                            for_discriminator=False)
+        G1_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
+                for_discriminator=False)
+
+        '''
         if not self.opt.no_ganFeat_loss:
             num_D = len(pred_fake_color)
             GAN_Feat_loss = self.FloatTensor(1).fill_(0)
@@ -195,16 +206,17 @@ class DualModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake_surface[i][j], pred_real_surface[i][j].detach())
                     GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
-            G_losses['GAN_Feat_surface'] = GAN_Feat_loss
+            G1_losses['GAN_Feat_surface'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
-            G_losses['VGG_surface'] = self.criterionVGG(fake_surface_image, surface_image) \
+            G1_losses['VGG_surface'] = self.criterionVGG(fake_surface_image, surface_image) \
                 * self.opt.lambda_vgg
+        '''
 
-        G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
+        G1_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
 
         #Color generator loss
-        G_losses['GAN_color'] = self.criterionGAN(pred_fake_color, True, 
+        G2_losses['GAN_color'] = self.criterionGAN(pred_fake_color, True, 
                 for_discriminator=False)
 
         if not self.opt.no_ganFeat_loss:
@@ -217,13 +229,13 @@ class DualModel(torch.nn.Module):
                     unweighted_loss = self.criterionFeat(
                         pred_fake_color[i][j], pred_real_color[i][j].detach())
                     GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
-            G_losses['GAN_Feat_color'] = GAN_Feat_loss
+            G2_losses['GAN_Feat_color'] = GAN_Feat_loss
 
         if not self.opt.no_vgg_loss:
-            G_losses['VGG_color'] = self.criterionVGG(fake_color_image, color_image) \
+            G2_losses['VGG_color'] = self.criterionVGG(fake_color_image, color_image) \
                 * self.opt.lambda_vgg
 
-        return G_losses, fake_surface_image, fake_color_image
+        return G1_losses, G2_losses, fake_surface_image, fake_color_image
 
     def compute_surface_discriminator_loss(self, input_semantics, surface_image, input_image):
         D_losses = {}
@@ -280,7 +292,8 @@ class DualModel(torch.nn.Module):
         input_semantics = (0.5 + noise_tensor/2) * input_semantics
         #print(input_semantics)
 
-        fake_surface_image, fake_color_image = self.netG(input_semantics, input_image, z=z)
+        fake_surface_image, surface_layers = self.netG1(input_semantics, input_image, z=z)
+        fake_color_image = self.netG2(input_semantics, surface_layers)
 
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
