@@ -9,6 +9,7 @@ import util.util as util
 import os
 import cv2
 from torch.autograd import Variable
+import torch
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -72,6 +73,8 @@ class Pix2pixDataset(BaseDataset):
         return filename1_without_ext == filename2_without_ext
 
     def __getitem__(self, index):
+
+        self.opt.no_flip = True
         # Label Image
         label_path = self.label_paths[index]
         label = Image.open(label_path)
@@ -85,11 +88,17 @@ class Pix2pixDataset(BaseDataset):
         assert self.paths_match(label_path, surface_path), \
             "The label_path %s and image_path %s don't match." % \
             (label_path, surface_path)
+        '''
         surface = Image.open(surface_path)
         surface = surface.convert('RGB')
 
         transform_surface = get_transform(self.opt, params)
         surface_tensor = transform_surface(surface)
+        '''
+        surface  = cv2.imread(surface_path, -1)
+        surface = surface/255.0/255.0
+        surface = 2*surface - 1
+        surface_tensor = torch.from_numpy(surface.transpose((2,0,1))).float()
 
         # target image color (real images)
         color_path = self.color_paths[index]

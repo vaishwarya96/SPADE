@@ -75,7 +75,7 @@ class DualModel(torch.nn.Module):
         if opt.no_TTUR:
             G_lr, D_lr = opt.lr, opt.lr
         else:
-            G_lr, D_lr = opt.lr / 2, opt.lr * 2
+            G_lr, D_lr = opt.lr / 4, opt.lr * 2
 
         optimizer_G = torch.optim.Adam(G_params, lr=G_lr, betas=(beta1, beta2))
         optimizer_D1 = torch.optim.Adam(D1_params, lr=D_lr, betas=(beta1, beta2))
@@ -185,6 +185,22 @@ class DualModel(torch.nn.Module):
                 input_semantics, fake_color_image, color_image, input_image)        #Surface generator loss
         G_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
                                             for_discriminator=False)
+        if not self.opt.no_ganFeat_loss:
+            num_D = len(pred_fake_color)
+            GAN_Feat_loss = self.FloatTensor(1).fill_(0)
+            for i in range(num_D):  # for each discriminator
+                # last output is the final prediction, so we exclude it
+                num_intermediate_outputs = len(pred_fake_color[i]) - 1
+                for j in range(num_intermediate_outputs):  # for each layer output
+                    unweighted_loss = self.criterionFeat(
+                        pred_fake_surface[i][j], pred_real_surface[i][j].detach())
+                    GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
+            G_losses['GAN_Feat_surface'] = GAN_Feat_loss
+
+        if not self.opt.no_vgg_loss:
+            G_losses['VGG_surface'] = self.criterionVGG(fake_surface_image, surface_image) \
+                * self.opt.lambda_vgg
+
         G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
 
         #Color generator loss
@@ -220,7 +236,7 @@ class DualModel(torch.nn.Module):
             input_semantics, fake_surface_image, surface_image, input_image)
 
         D_losses['D1_Fake'] = self.criterionGAN(pred_fake, False,
-                                               for_discriminator=True)
+                                               for_discriminator=True) 
         D_losses['D1_real'] = self.criterionGAN(pred_real, True,
                                                for_discriminator=True)
         return D_losses
