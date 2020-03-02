@@ -79,6 +79,7 @@ class NLayerDiscriminator(BaseNetwork):
         padw = int(np.ceil((kw - 1.0) / 2))
         nf = opt.ndf
         input_nc = self.compute_D_input_nc(opt)
+        input_nc = 2
 
         norm_layer = get_nonspade_norm_layer(opt, opt.norm_D)
         sequence = [[nn.Conv2d(input_nc, nf, kernel_size=kw, stride=2, padding=padw),
@@ -100,7 +101,7 @@ class NLayerDiscriminator(BaseNetwork):
             self.add_module('model' + str(n), nn.Sequential(*sequence[n]))
 
     def compute_D_input_nc(self, opt):
-        input_nc = opt.label_nc + opt.output_nc
+        input_nc = opt.output_nc #opt.label_nc + opt.output_nc
         if opt.contain_dontcare_label:
             input_nc += 1
         if not opt.no_instance:

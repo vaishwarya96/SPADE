@@ -13,6 +13,7 @@ import os
 import argparse
 import dill as pickle
 import util.coco
+import cv2
 
 
 def save_obj(obj, name):
@@ -61,7 +62,9 @@ def tile_images(imgs, picturesPerRow=4):
 
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
-def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
+def tensor2im(image_tensor, imtype=np.uint16, normalize=True, tile=False):
+
+    #print(image_tensor.shape)
     if isinstance(image_tensor, list):
         image_numpy = []
         for i in range(len(image_tensor)):
@@ -81,18 +84,18 @@ def tensor2im(image_tensor, imtype=np.uint8, normalize=True, tile=False):
             return images_tiled
         else:
             return images_np
-
-    if image_tensor.dim() == 2:
-        image_tensor = image_tensor.unsqueeze(0)
+    
+    #if image_tensor.dim() == 2:
+    #    image_tensor = image_tensor.unsqueeze(0)
     image_numpy = image_tensor.detach().cpu().float().numpy()
     if normalize:
-        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 65535.0
     else:
-        image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
-    image_numpy = np.clip(image_numpy, 0, 255)
-    if image_numpy.shape[2] == 1:
-        image_numpy = image_numpy[:, :, 0]
-    return image_numpy.astype(imtype)
+        image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 65535.0
+    image_numpy = np.clip(image_numpy, 0, 65535)
+    #if image_numpy.shape[2] == 1:
+    #    image_numpy = image_numpy[:, :, 0]
+    return image_numpy.astype(np.uint16)
 
 
 # Converts a one-hot tensor into a colorful label map
@@ -128,15 +131,20 @@ def tensor2label(label_tensor, n_label, imtype=np.uint8, tile=False):
 def save_image(image_numpy, image_path, create_dir=False):
     if create_dir:
         os.makedirs(os.path.dirname(image_path), exist_ok=True)
+
+    #print(image_numpy.shape)
+    '''
     if len(image_numpy.shape) == 2:
         image_numpy = np.expand_dims(image_numpy, axis=2)
     if image_numpy.shape[2] == 1:
         image_numpy = np.repeat(image_numpy, 3, 2)
+  
     image_pil = Image.fromarray(image_numpy)
 
     # save to png
     image_pil.save(image_path.replace('.jpg', '.png'))
-
+    '''
+    cv2.imwrite(image_path, image_numpy)
 
 def mkdirs(paths):
     if isinstance(paths, list) and not isinstance(paths, str):

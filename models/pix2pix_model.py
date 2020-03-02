@@ -140,6 +140,7 @@ class Pix2PixModel(torch.nn.Module):
             data['image'] = data['image'].cuda()
             data['input'] = data['input'].cuda()
 
+
         # create one-hot label map
         label_map = data['label']
         bs, _, h, w = label_map.size()
@@ -168,14 +169,14 @@ class Pix2PixModel(torch.nn.Module):
  
         if self.opt.use_vae:
             G_losses['KLD'] = KLD_loss
-            G_losses['Content'] = self.criterionContent(fake_image, input_image)
+            #G_losses['Content'] = self.criterionContent(fake_image, input_image)
 
         pred_fake, pred_real = self.discriminate(
             input_semantics, fake_image, real_image, input_image)
 
         G_losses['GAN'] = self.criterionGAN(pred_fake, True,
                                             for_discriminator=False)
-
+        ''' 
         if not self.opt.no_ganFeat_loss:
             num_D = len(pred_fake)
             GAN_Feat_loss = self.FloatTensor(1).fill_(0)
@@ -187,10 +188,12 @@ class Pix2PixModel(torch.nn.Module):
                         pred_fake[i][j], pred_real[i][j].detach())
                     GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
             G_losses['GAN_Feat'] = GAN_Feat_loss
-
+    
         if not self.opt.no_vgg_loss:
             G_losses['VGG'] = self.criterionVGG(fake_image, real_image) \
                 * self.opt.lambda_vgg
+        '''
+        G_losses['L1'] = self.criterionFeat(fake_image, real_image) * 10.0
 
         return G_losses, fake_image
 
@@ -203,11 +206,10 @@ class Pix2PixModel(torch.nn.Module):
 
         pred_fake, pred_real = self.discriminate(
             input_semantics, fake_image, real_image, input_image)
-
         D_losses['D_Fake'] = self.criterionGAN(pred_fake, False,
-                                               for_discriminator=True)
+                                               for_discriminator=True) 
         D_losses['D_real'] = self.criterionGAN(pred_real, True,
-                                               for_discriminator=True)
+                                               for_discriminator=True) 
 
         return D_losses
 
@@ -231,9 +233,8 @@ class Pix2PixModel(torch.nn.Module):
         noise_tensor = torch.FloatTensor(noise).cuda()
 
         input_semantics = (0.5 + noise_tensor/2) * input_semantics
-        #print(input_semantics)
-
-        fake_image = self.netG(input_semantics, z=z)
+        #input_image_1 = input_image[:,0,:,:]
+        fake_image = self.netG(input_image, z=z)
 
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
@@ -244,8 +245,8 @@ class Pix2PixModel(torch.nn.Module):
     # for each fake and real image.
 
     def discriminate(self, input_semantics, fake_image, real_image, input_image):
-        fake_concat = torch.cat([input_semantics, fake_image, input_image], dim=1)
-        real_concat = torch.cat([input_semantics, real_image, input_image], dim=1)
+        fake_concat = torch.cat([fake_image, input_image], dim=1)
+        real_concat = torch.cat([real_image, input_image], dim=1)
 
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate

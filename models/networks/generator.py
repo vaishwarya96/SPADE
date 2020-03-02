@@ -29,6 +29,12 @@ class SPADEGenerator(BaseNetwork):
 
         self.sw, self.sh = self.compute_latent_vector_size(opt)
 
+        self.down_0 = NormalResnetBlock(1, 1 * nf, opt)
+        self.down_1 = NormalResnetBlock(1 * nf, 2 * nf, opt)
+        self.down_2 = NormalResnetBlock(2 * nf, 4 * nf, opt)
+        self.down_3 = NormalResnetBlock(4 * nf, 8 * nf, opt)
+        self.down_4 = NormalResnetBlock(8 * nf, 16 * nf, opt)
+        '''
         if opt.use_vae:
             # In case of VAE, we will sample from random z vector
             self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)
@@ -36,7 +42,7 @@ class SPADEGenerator(BaseNetwork):
             # Otherwise, we make the network deterministic by starting with
             # downsampled segmentation map instead of random z
             self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)
-
+        '''
         self.head_0 = NormalResnetBlock(16 * nf, 16 * nf, opt)
 
         self.G_middle_0 = NormalResnetBlock(16 * nf, 16 * nf, opt)
@@ -53,9 +59,10 @@ class SPADEGenerator(BaseNetwork):
             self.up_4 = NormalResnetBlock(1 * nf, nf // 2, opt)
             final_nc = nf // 2
 
-        self.conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
+        self.conv_img = nn.Conv2d(final_nc, 1, 3, padding=1)
 
         self.up = nn.Upsample(scale_factor=2)
+        self.down = nn.Upsample(scale_factor=0.5)
 
     def compute_latent_vector_size(self, opt):
         if opt.num_upsampling_layers == 'normal':
@@ -74,8 +81,7 @@ class SPADEGenerator(BaseNetwork):
         return sw, sh
 
     def forward(self, input, z=None):
-        seg = input
-
+        '''
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
@@ -87,6 +93,21 @@ class SPADEGenerator(BaseNetwork):
             # we downsample segmap and run convolution
             x = F.interpolate(seg, size=(self.sh, self.sw))
             x = self.fc(x)
+        '''
+        x = self.down_0(input)
+        x = self.down(x)
+
+        x = self.down_1(x)
+        x = self.down(x)
+
+        x = self.down_2(x)
+        x = self.down(x)
+
+        x = self.down_3(x)
+        x = self.down(x)
+
+        x = self.down_4(x)
+        x = self.down(x)
 
         x = self.head_0(x)
 

@@ -8,6 +8,7 @@ from PIL import Image
 import util.util as util
 import os
 import cv2
+import torch
 from torch.autograd import Variable
 
 class Pix2pixDataset(BaseDataset):
@@ -64,6 +65,8 @@ class Pix2pixDataset(BaseDataset):
 
     def __getitem__(self, index):
         # Label Image
+
+        self.opt.no_flip = True
         label_path = self.label_paths[index]
         label = Image.open(label_path)
         params = get_params(self.opt, label.size)
@@ -80,21 +83,38 @@ class Pix2pixDataset(BaseDataset):
         assert self.paths_match(label_path, image_path), \
             "The label_path %s and image_path %s don't match." % \
             (label_path, image_path)
+        '''
         image = Image.open(image_path)
         image = image.convert('RGB')
-
+         
         transform_image = get_transform(self.opt, params)
         image_tensor = transform_image(image)
+        '''
+        image = cv2.imread(image_path, -1)
+        image = image[:,:,0]
+        #image = image/65535.0
+        #image = 2 * image - 1
+        image = 2 * (image - image.min())/(image.max() - image.min()) - 1
+        image_tensor = torch.from_numpy(image).float().unsqueeze(0)
 
         # input image 
         input_path = self.input_paths[index]
         assert self.paths_match(label_path, input_path), \
                 "The label_path %s and input path %s don't match." %\
                 (label_path, input_path)
+
+        '''
         input_img = Image.open(input_path)
 
         transform_input = get_transform(self.opt, params)
         input_tensor = transform_input(input_img)
+        '''
+        input_img = cv2.imread(input_path, -1)
+        input_img = input_img[:,:,0]
+        #input_img = input_img/65535.0
+        #input_img = 2 * input_img - 1
+        input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
+        input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
 
         # if using instance maps
         if self.opt.no_instance:
