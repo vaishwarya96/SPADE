@@ -9,6 +9,7 @@ import util.util as util
 import os
 import cv2
 from torch.autograd import Variable
+import torch
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -72,6 +73,8 @@ class Pix2pixDataset(BaseDataset):
         return filename1_without_ext == filename2_without_ext
 
     def __getitem__(self, index):
+
+        self.opt.no_flip = True
         # Label Image
         label_path = self.label_paths[index]
         label = Image.open(label_path)
@@ -85,11 +88,17 @@ class Pix2pixDataset(BaseDataset):
         assert self.paths_match(label_path, surface_path), \
             "The label_path %s and image_path %s don't match." % \
             (label_path, surface_path)
+        '''
         surface = Image.open(surface_path)
         surface = surface.convert('RGB')
 
         transform_surface = get_transform(self.opt, params)
         surface_tensor = transform_surface(surface)
+        '''
+        surface = cv2.imread(surface_path, -1)
+        surface = surface[:,:,0]
+        surface = 2 * (surface - surface.min())/(surface.max() - surface.min()) - 1
+        surface_tensor = torch.from_numpy(surface).float().unsqueeze(0)
 
         # target image color (real images)
         color_path = self.color_paths[index]
@@ -107,10 +116,17 @@ class Pix2pixDataset(BaseDataset):
         assert self.paths_match(label_path, input_path), \
                 "The label_path %s and input path %s don't match." %\
                 (label_path, input_path)
+
+        '''
         input_img = Image.open(input_path)
 
         transform_input = get_transform(self.opt, params)
         input_tensor = transform_input(input_img)
+        '''
+        input_img = cv2.imread(input_path, -1)
+        input_img = input_img[:,:,0]
+        input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
+        input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
 
         # if using instance maps
         if self.opt.no_instance:

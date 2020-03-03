@@ -11,14 +11,14 @@ from models.networks.normalization import get_nonspade_norm_layer
 from models.networks.architecture import ResnetBlock as ResnetBlock
 from models.networks.architecture import SPADEResnetBlock as SPADEResnetBlock
 from models.networks.architecture import ModifiedSPADEResnetBlock as ModifiedSPADEResnetBlock
+from models.networks.architecture import NormalResnetBlock as NormalResnetBlock
 
 
 class DualGenerator(BaseNetwork):
     @staticmethod
     def modify_commandline_options(parser, is_train):
         parser.set_defaults(norm_G='spectralspadesyncbatch3x3')
-        parser.add_argument('--num_upsampling_layers', choices=('normal', 'more', 'most'), default='normal', 
-                            help="If 'more', adds upsampling layer between the two middle resnet blocks. If 'most', also add one more upsampling + resnet layer at the end of the generator")
+        parser.add_argument('--num_upsampling_layers', choices=('normal', 'more', 'most'), default='normal', help="If 'more', adds upsampling layer between the two middle resnet blocks. If 'most', also add one more upsampling + resnet layer at the end of the generator")
 
         return parser
 
@@ -28,38 +28,52 @@ class DualGenerator(BaseNetwork):
         nf = opt.ngf
 
         self.sw, self.sh = self.compute_latent_vector_size(opt)
-
+        '''
         if opt.use_vae:
             # In case of VAE, we will sample from random z vector
-            self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)                   #First Common layer
+            self.fc_surface = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)                   
         else:
             #Otherwise, we make the network deterministic by starting with 
             #downsampled segmentation map instead of random z
-            self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
-            
-        self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                            #Second common
+            self.fc_surface = nn.Conv2d(3, 16 * nf, 3, padding=1)
+        '''
 
-        self.G_middle_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Third common
-        self.G_middle_1 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Fourth common
+        self.surface_down_0 = NormalResNetBlock(1, 1 * nf, opt)
+        self.surface_down_1 = NormalResNetBlock(1 * nf, 2 * nf, opt)
+        self.surface_down_2 = NormalResNetBlock(2 * nf, 4 * nf, opt)
+        self.surface_down_3 = NormalResNetBlock(4 * nf, 8 * nf, opt)
 
+        self.head_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                          
+
+        self.G_middle_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                       
+        self.G_middle_1_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                  
+        
         
         #Surface geneator layers
-        self.surface_up_0 = SPADEResnetBlock(16 * nf, 8 * nf, opt)
-        self.surface_up_1 = SPADEResnetBlock(8 * nf, 4 * nf, opt)
-        self.surface_up_2 = SPADEResnetBlock(4 * nf, 2 * nf, opt)
-        self.surface_up_3 = SPADEResnetBlock(2 * nf, 1 * nf, opt)
+        self.surface_up_0 = NormalResnetBlock(16 * nf, 8 * nf, opt)
+        self.surface_up_1 = NormalResnetBlock(8 * nf, 4 * nf, opt)
+        self.surface_up_2 = NormalResnetBlock(4 * nf, 2 * nf, opt)
+        self.surface_up_3 = NormalResnetBlock(2 * nf, 1 * nf, opt)
 
         final_nc = nf
 
         if opt.num_upsampling_layers == 'most':
-            self.surface_up_4 = SPADEResnetBlock(1 * nf, nf // 2, opt)
+            self.surface_up_4 = NormalResnetBlock(1 * nf, nf // 2, opt)
             final_nc = nf // 2
 
-        self.surface_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
+        self.surface_conv_img = nn.Conv2d(final_nc, 1, 3, padding=1)
 
 
-        #Color generator layers
-        extra_channels = True  #Extra channels come from the surface generator branch
+
+        #Color geneator layers
+        extra_channels = True
+        self.head_0_color = MOdifiedSPADEResnetBlock(16 * nf, 16 * nf, opt, extra_channels)                          
+
+        self.G_middle_0_color = ModifiedSPADEResnetBlock(16 * nf, 16 * nf, opt, extra_channels)                       
+        self.G_middle_1_color = ModifiedSPADEResnetBlock(16 * nf, 16 * nf, opt, extra_channels)              
+
+
+
         self.color_up_0 = ModifiedSPADEResnetBlock(16 * nf, 8 * nf, opt, extra_channels)
         self.color_up_1 = ModifiedSPADEResnetBlock(8 * nf, 4 * nf, opt, extra_channels)
         self.color_up_2 = ModifiedSPADEResnetBlock(4 * nf, 2 * nf, opt, extra_channels)
@@ -71,7 +85,9 @@ class DualGenerator(BaseNetwork):
             self.color_up_4 = ModifiedSPADEResnetBlock(1 * nf, nf // 2, opt, extra_channels)
             final_nc = nf // 2
 
-        self.color_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1) 
+        self.color_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
+
+
         self.up = nn.Upsample(scale_factor=2)
 
     def compute_latent_vector_size(self, opt):
@@ -90,9 +106,19 @@ class DualGenerator(BaseNetwork):
 
         return sw, sh
 
-    def forward(self, input, z=None):
+    def forward(self, seg, input_image, z=None):
+        
+        layers = []
+        z = F.interpolate(input_image, size = (self.sh, self.sw))
+       
+        if self.opt.use_vae:
+            # we sample z from unit normal and reshape the tensor
+            if z is None:
+                z = torch.randn(input.size(0), self.opt.z_dim,
+                                dtype=torch.float32, device=input.get_device())
+            x1 = self.fc_surface(z)
         seg = input
-
+        #z = F.interpolate(input_image, size = (self.sh, self.sw))
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
@@ -119,18 +145,18 @@ class DualGenerator(BaseNetwork):
         x = self.up(x)                                   #Common layers upto this
 
         #Branch1 (surface generator)
-        b1x1 = self.surface_up_0(x, seg)
+        b1x1 = self.surface_up_0(x)
         b1x2 = self.up(b1x1)
-        b1x2 = self.surface_up_1(b1x2, seg)
+        b1x2 = self.surface_up_1(b1x2)
         b1x3 = self.up(b1x2)
-        b1x3 = self.surface_up_2(b1x3, seg)
+        b1x3 = self.surface_up_2(b1x3)
         b1x4 = self.up(b1x3)
-        b1x4 = self.surface_up_3(b1x4, seg)
+        b1x4 = self.surface_up_3(b1x4)
         
         surface = b1x4
         if self.opt.num_upsampling_layers == 'most':
             b1x5 = self.up(b1x4)
-            b1x5 = self.surface_up_4(b1x5, seg)
+            b1x5 = self.surface_up_4(b1x5)
             surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))
         else:
             surface = self.surface_conv_img(F.leaky_relu(b1x4, 2e-1))
@@ -332,3 +358,103 @@ class Pix2PixHDGenerator(BaseNetwork):
 
     def forward(self, input, z=None):
         return self.model(input)
+"""
+Copyright (C) 2019 NVIDIA Corporation.  All rights reserved.
+Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from models.networks.base_network import BaseNetwork
+from models.networks.normalization import get_nonspade_norm_layer
+from models.networks.architecture import ResnetBlock as ResnetBlock
+from models.networks.architecture import SPADEResnetBlock as SPADEResnetBlock
+from models.networks.architecture import ModifiedSPADEResnetBlock as ModifiedSPADEResnetBlock
+
+
+class DualGenerator(BaseNetwork):
+    @staticmethod
+    def modify_commandline_options(parser, is_train):
+        parser.set_defaults(norm_G='spectralspadesyncbatch3x3')
+        parser.add_argument('--num_upsampling_layers', choices=('normal', 'more', 'most'), default='normal', 
+                            help="If 'more', adds upsampling layer between the two middle resnet blocks. If 'most', also add one more upsampling + resnet layer at the end of the generator")
+
+        return parser
+
+    def __init__(self, opt):
+        super().__init__()
+        self.opt = opt
+        nf = opt.ngf
+
+        self.sw, self.sh = self.compute_latent_vector_size(opt)
+
+        if opt.use_vae:
+            # In case of VAE, we will sample from random z vector
+            self.fc = nn.Linear(opt.z_dim, 16 * nf * self.sw * self.sh)                   #First Common layer
+        else:
+            #Otherwise, we make the network deterministic by starting with 
+            #downsampled segmentation map instead of random z
+            self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * nf, 3, padding=1)             # First common layer
+            
+        self.head_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                            #Second common
+
+        self.G_middle_0 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Third common
+        self.G_middle_1 = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       # Fourth common
+
+        
+        #Surface geneator layers
+        self.surface_up_0 = SPADEResnetBlock(16 * nf, 8 * nf, opt)
+        self.surface_up_1 = SPADEResnetBlock(8 * nf, 4 * nf, opt)
+        self.surface_up_2 = SPADEResnetBlock(4 * nf, 2 * nf, opt)
+        self.surface_up_3 = SPADEResnetBlock(2 * nf, 1 * nf, opt)
+
+        final_nc = nf
+
+        if opt.num_upsampling_layers == 'most':
+            self.surface_up_4 = SPADEResnetBlock(1 * nf, nf // 2, opt)
+            final_nc = nf // 2
+
+        self.surface_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
+
+
+        #Color generator layers
+        extra_channels = True  #Extra channels come from the surface generator branch
+        self.color_up_0 = ModifiedSPADEResnetBlock(16 * nf, 8 * nf, opt, extra_channels)
+        self.color_up_1 = ModifiedSPADEResnetBlock(8 * nf, 4 * nf, opt, extra_channels)
+        self.color_up_2 = ModifiedSPADEResnetBlock(4 * nf, 2 * nf, opt, extra_channels)
+        self.color_up_3 = ModifiedSPADEResnetBlock(2 * nf, 1 * nf, opt, extra_channels)
+
+        final_nc = nf
+
+        if opt.num_upsampling_layers == 'most':
+            self.color_up_4 = ModifiedSPADEResnetBlock(1 * nf, nf // 2, opt, extra_channels)
+            final_nc = nf // 2
+
+        self.color_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1) 
+        self.up = nn.Upsample(scale_factor=2)
+
+    def compute_latent_vector_size(self, opt):
+        if opt.num_upsampling_layers == 'normal':
+            num_up_layers = 5
+        elif opt.num_upsampling_layers == 'more':
+            num_up_layers = 6
+        elif opt.num_upsampling_layers == 'most':
+            num_up_layers = 7
+        else:
+            raise ValueError('opt.num_upsampling_layers [%s] not recognized' %
+                             opt.num_upsampling_layers)
+
+        sw = opt.crop_size // (2**num_up_layers)
+        sh = round(sw / opt.aspect_ratio)
+
+        return sw, sh
+
+    def forward(self, input, z=None):
+        seg = input
+
+        if self.opt.use_vae:
+            # we sample z from unit normal and reshape the tensor
+            if z is None:
+                z = torch.randn(input.size(0), self.opt.z_dim,
+                                dtype=torch.float32, device=input.get_device())

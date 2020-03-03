@@ -264,7 +264,7 @@ class DualModel(torch.nn.Module):
         input_semantics = (0.5 + noise_tensor/2) * input_semantics
         #print(input_semantics)
 
-        fake_surface_image, fake_color_image = self.netG(input_semantics, z=z)
+        fake_surface_image, fake_color_image = self.netG(input_semantics, input_image, z=z)
 
         assert (not compute_kld_loss) or self.opt.use_vae, \
             "You cannot compute KLD loss if opt.use_vae == False"
