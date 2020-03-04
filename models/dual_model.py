@@ -57,7 +57,7 @@ class DualModel(torch.nn.Module):
             return mu, logvar
         elif mode == 'inference':
             with torch.no_grad():
-                fake_surface_image, fake_color_image, _ = self.generate_fake(input_semantics, surface_image, color_image, input_image)
+                fake_surface_image, fake_color_image, _ = self.generate_fake(input_semantics, surface_image, input_image)
             return fake_surface_image, fake_color_image
 
         else:
@@ -96,7 +96,7 @@ class DualModel(torch.nn.Module):
 
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
-        opt.input_nc = 6
+        opt.input_nc = 2
         netD1 = networks.define_D(opt) if opt.isTrain else None
         opt.input_nc = 7
         netD2 = networks.define_D(opt) if opt.isTrain else None
@@ -262,8 +262,7 @@ class DualModel(torch.nn.Module):
         noise_tensor = torch.FloatTensor(noise).cuda()
 
         input_semantics = (0.5 + noise_tensor/2) * input_semantics
-        #print(input_semantics)
-
+        
         fake_surface_image, fake_color_image = self.netG(input_semantics, input_image, z=z)
 
         assert (not compute_kld_loss) or self.opt.use_vae, \

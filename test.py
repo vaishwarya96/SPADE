@@ -8,7 +8,7 @@ from collections import OrderedDict
 
 import data
 from options.test_options import TestOptions
-from models.pix2pix_model import Pix2PixModel
+from models.dual_model import DualModel
 from util.visualizer import Visualizer
 from util import html
 
@@ -16,7 +16,7 @@ opt = TestOptions().parse()
 
 dataloader = data.create_dataloader(opt)
 
-model = Pix2PixModel(opt)
+model = DualModel(opt)
 model.eval()
 
 visualizer = Visualizer(opt)
@@ -33,13 +33,14 @@ for i, data_i in enumerate(dataloader):
     if i * opt.batchSize >= opt.how_many:
         break
 
-    generated = model(data_i, mode='inference')
+    generated_surface, generated_color = model(data_i, mode='inference')
 
     img_path = data_i['path']
-    for b in range(generated.shape[0]):
+    for b in range(generated_surface.shape[0]):
         print('process image... %s' % img_path[b])
         visuals = OrderedDict([('input_label', data_i['label'][b]),
-                               ('synthesized_image', generated[b])])
+                               ('synthesized_surface', generated_surface[b]),
+                               ('synthesized_color', generated_color[b])])
         visualizer.save_images(webpage, visuals, img_path[b:b + 1])
 
 webpage.save()

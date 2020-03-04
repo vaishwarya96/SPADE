@@ -105,12 +105,18 @@ class Pix2pixDataset(BaseDataset):
         assert self.paths_match(label_path, color_path), \
             "The label_path %s and image_path %s don't match." % \
             (label_path, color_path)
+        '''
         color = Image.open(color_path)
         color = color.convert('RGB')
 
         transform_color = get_transform(self.opt, params)
         color_tensor = transform_color(color)
+        '''
 
+        color = cv2.imread(color_path, -1)
+        color = color / 255.0 / 255.0
+        color = 2 * color - 1
+        color_tensor = torch.from_numpy(color.transpose((2,0,1))).float()
         # input image (smoothened radius map)
         input_path = self.input_paths[index]
         assert self.paths_match(label_path, input_path), \
@@ -146,7 +152,7 @@ class Pix2pixDataset(BaseDataset):
                       'instance': instance_tensor,
                       'surface': surface_tensor,
                       'color' : color_tensor,
-                      #'path': surface_path,
+                      'path': input_path,
                       'input': input_tensor
                       }
 

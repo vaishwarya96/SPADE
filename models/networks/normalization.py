@@ -87,6 +87,8 @@ class SPADE(nn.Module):
         nhidden = 128
 
         pw = ks // 2
+
+        '''
         self.mlp_shared_2 = nn.Sequential(
             nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=2, dilation = 2),
             nn.LeakyReLU(0.2)
@@ -120,6 +122,7 @@ class SPADE(nn.Module):
         )
         self.mlp_gamma_16 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=16, dilation = 16)
         self.mlp_beta_16 = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=16, dilation = 16)
+        '''
 
         self.mlp_shared = nn.Sequential(
             nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw, dilation = 1),
