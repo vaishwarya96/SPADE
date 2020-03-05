@@ -48,7 +48,8 @@ class ModifiedSPADEResnetBlock(nn.Module):
                 self.norm_s = SPADE(spade_config_str, fin, opt.semantic_nc)
 
         else:
-            num_channels = fout + opt.semantic_nc
+            #num_channels = fout + opt.semantic_nc
+            num_channels = opt.semantic_nc + 16
             self.norm_0 = SPADE(spade_config_str, fin, num_channels)
             self.norm_1 = SPADE(spade_config_str, fmiddle, num_channels)
             if self.learned_shortcut:

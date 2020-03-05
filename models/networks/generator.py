@@ -89,6 +89,12 @@ class DualGenerator(BaseNetwork):
 
         self.color_conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
 
+        self.b1x1_conv = nn.Conv2d(8 * nf, 16, 3, padding=1)
+        self.b1x2_conv = nn.Conv2d(4 * nf, 16, 3, padding=1)
+        self.b1x3_conv = nn.Conv2d(2 * nf, 16, 3, padding=1)
+        self.b1x4_conv = nn.Conv2d(1 * nf, 16, 3, padding=1)
+        self.b1x5_conv = nn.Conv2d(nf//2, 16, 3, padding=1)
+
 
         self.up = nn.Upsample(scale_factor=2)
         self.down = nn.Upsample(scale_factor = 0.5)
@@ -173,17 +179,26 @@ class DualGenerator(BaseNetwork):
         x = self.up(x)
 
         b1x1 = self.surface_up_0(x)
+        b1x1_conv = self.b1x1_conv(b1x1)
+
         b1x2 = self.up(b1x1)
         b1x2 = self.surface_up_1(b1x2)
+        b1x2_conv = self.b1x2_conv(b1x2)
+
         b1x3 = self.up(b1x2)
         b1x3 = self.surface_up_2(b1x3)
+        b1x3_conv = self.b1x3_conv(b1x3)
+
         b1x4 = self.up(b1x3)
         b1x4 = self.surface_up_3(b1x4)
+        b1x4_conv = self.b1x4_conv(b1x4)
         
         surface = b1x4
         if self.opt.num_upsampling_layers == 'most':
             b1x5 = self.up(b1x4)
             b1x5 = self.surface_up_4(b1x5)
+            b1x5_conv = self.b1x5_conv(b1x5)
+
             surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))
         else:
             surface = self.surface_conv_img(F.leaky_relu(b1x4, 2e-1))
@@ -192,18 +207,18 @@ class DualGenerator(BaseNetwork):
 
         #Branch2 (color generator)
 
-        b2x1 = self.color_up_0(x, seg, b1x1)
+        b2x1 = self.color_up_0(x, seg, b1x1_conv)
         b2x2 = self.up(b2x1)
-        b2x2 = self.color_up_1(b2x2, seg, b1x2)
+        b2x2 = self.color_up_1(b2x2, seg, b1x2_conv)
         b2x3 = self.up(b2x2)
-        b2x3 = self.color_up_2(b2x3, seg, b1x3)
+        b2x3 = self.color_up_2(b2x3, seg, b1x3_conv)
         b2x4 = self.up(b2x3)
-        b2x4 = self.color_up_3(b2x4, seg, b1x4)
+        b2x4 = self.color_up_3(b2x4, seg, b1x4_conv)
         
         color = b2x4
         if self.opt.num_upsampling_layers == 'most':
             b2x5 = self.up(b2x4)
-            b2x5 = self.color_up_4(b2x5, seg, b1x5)
+            b2x5 = self.color_up_4(b2x5, seg, b1x5_conv)
             color = self.color_conv_img(F.leaky_relu(b2x5, 2e-1))
         else: 
             color = self.color_conv_img(F.leaky_relu(b2x4, 2e-1))
