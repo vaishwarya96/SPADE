@@ -41,6 +41,6 @@ for i, data_i in enumerate(dataloader):
         visuals = OrderedDict([('input_label', data_i['label'][b]),
                                ('synthesized_surface', generated_surface[b]),
                                ('synthesized_color', generated_color[b])])
-        visualizer.save_images(webpage, visuals, img_path[b:b + 1])
+        visualizer.save_images(webpage, visuals, img_path[b:b + 1], data_i['input_min'][b], data_i['input_max'][b])
 
 webpage.save()

@@ -113,8 +113,8 @@ class Pix2pixDataset(BaseDataset):
         color_tensor = transform_color(color)
         '''
 
-        color = cv2.imread(color_path, -1)
-        color = color / 255.0 / 255.0
+        color = cv2.imread(color_path)
+        color = color / 255.0
         color = 2 * color - 1
         color_tensor = torch.from_numpy(color.transpose((2,0,1))).float()
         # input image (smoothened radius map)
@@ -131,6 +131,11 @@ class Pix2pixDataset(BaseDataset):
         '''
         input_img = cv2.imread(input_path, -1)
         input_img = input_img[:,:,0]
+        min_value = input_img.min()
+        max_value = input_img.max()
+        #min_value = torch.from_numpy(input_img.min()).float()
+        #max_value = torch.from_numpy(input_img.max()).float()
+
         input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
         input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
 
@@ -153,7 +158,9 @@ class Pix2pixDataset(BaseDataset):
                       'surface': surface_tensor,
                       'color' : color_tensor,
                       'path': input_path,
-                      'input': input_tensor
+                      'input': input_tensor,
+                      'input_max': str(max_value),
+                      'input_min': str(min_value)
                       }
 
         # Give subclasses a chance to modify the final output

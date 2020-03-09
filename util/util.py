@@ -62,11 +62,12 @@ def tile_images(imgs, picturesPerRow=4):
 
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
-def tensor2im(image_tensor, imtype=np.uint16, normalize=True, tile=False):
+def tensor2imsurface(image_tensor, min_val, max_val, imtype=np.uint16, normalize=True, tile=False):
+    
     if isinstance(image_tensor, list):
         image_numpy = []
         for i in range(len(image_tensor)):
-            image_numpy.append(tensor2im(image_tensor[i], imtype, normalize))
+            image_numpy.append(tensor2imsurface(image_tensor[i], min_val[i], max_val[i], imtype, normalize))
         return image_numpy
 
     if image_tensor.dim() == 4:
@@ -74,7 +75,7 @@ def tensor2im(image_tensor, imtype=np.uint16, normalize=True, tile=False):
         images_np = []
         for b in range(image_tensor.size(0)):
             one_image = image_tensor[b]
-            one_image_np = tensor2im(one_image)
+            one_image_np = tensor2imsurface(one_image, float(min_val[b]), float(max_val[b]))
             images_np.append(one_image_np.reshape(1, *one_image_np.shape))
         images_np = np.concatenate(images_np, axis=0)
         if tile:
@@ -87,13 +88,47 @@ def tensor2im(image_tensor, imtype=np.uint16, normalize=True, tile=False):
     #    image_tensor = image_tensor.unsqueeze(0)
     image_numpy = image_tensor.detach().cpu().float().numpy()
     if normalize:
-        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 65535.0
+        image_numpy = float(min_val) + (image_numpy + 1) * (float(max_val) - float(min_val)) / 2
+        image_numpy = np.transpose(image_numpy, (1,2,0))
     else:
         image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 65535.0
     image_numpy = np.clip(image_numpy, 0, 65535)
     #if image_numpy.shape[2] == 1:
     #    image_numpy = image_numpy[:, :, 0]
     return image_numpy.astype(np.uint16)
+
+def tensor2imcolor(image_tensor, imtype=np.uint8, normalize=True, tile=False):
+    if isinstance(image_tensor, list):
+        image_numpy = []
+        for i in range(len(image_tensor)):
+            image_numpy.append(tensor2imcolor(image_tensor[i], imtype, normalize))
+        return image_numpy
+
+    if image_tensor.dim() == 4:
+        # transform each image in the batch
+        images_np = []
+        for b in range(image_tensor.size(0)):
+            one_image = image_tensor[b]
+            one_image_np = tensor2imcolor(one_image)
+            images_np.append(one_image_np.reshape(1, *one_image_np.shape))
+        images_np = np.concatenate(images_np, axis=0)
+        if tile:
+            images_tiled = tile_images(images_np)
+            return images_tiled
+        else:
+            return images_np
+
+    #if image_tensor.dim() == 2:
+    #    image_tensor = image_tensor.unsqueeze(0)
+    image_numpy = image_tensor.detach().cpu().float().numpy()
+    if normalize:
+        image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+    else:
+        image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
+    image_numpy = np.clip(image_numpy, 0, 255)
+    #if image_numpy.shape[2] == 1:
+    #    image_numpy = image_numpy[:, :, 0]
+    return image_numpy.astype(np.uint8)
 
 
 # Converts a one-hot tensor into a colorful label map
@@ -139,7 +174,6 @@ def save_image(image_numpy, image_path, create_dir=False):
     # save to png
     image_pil.save(image_path.replace('.jpg', '.png'))
     '''
-
     cv2.imwrite(image_path, image_numpy)
 
 def mkdirs(paths):

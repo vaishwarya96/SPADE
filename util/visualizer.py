@@ -39,14 +39,15 @@ class Visualizer():
                 log_file.write('================ Training Loss (%s) ================\n' % now)
 
     # |visuals|: dictionary of images to display or save
-    def display_current_results(self, visuals, epoch, step):
+    def display_current_results(self, visuals, epoch, step, min_val, max_val):
 
         ## convert tensors to numpy arrays
-        visuals = self.convert_visuals_to_numpy(visuals)
+        visuals = self.convert_visuals_to_numpy(visuals, min_val, max_val)
                 
         if self.tf_log: # show images in tensorboard output
             img_summaries = []
             for label, image_numpy in visuals.items():
+
                 # Write the image to a string
                 try:
                     s = StringIO()
@@ -125,19 +126,21 @@ class Visualizer():
         with open(self.log_name, "a") as log_file:
             log_file.write('%s\n' % message)
 
-    def convert_visuals_to_numpy(self, visuals):
+    def convert_visuals_to_numpy(self, visuals, min_val, max_val):
         for key, t in visuals.items():
             tile = self.opt.batchSize > 8
             if 'input_label' == key:
                 t = util.tensor2label(t, self.opt.label_nc + 2, tile=tile)
+            elif 'color_real_image' == key or 'color_image' == key or 'synthesized_color' == key:
+                t = util.tensor2imcolor(t, tile=tile)
             else:
-                t = util.tensor2im(t, tile=tile)
+                t = util.tensor2imsurface(t, min_val = min_val, max_val = max_val, tile=tile)
             visuals[key] = t
         return visuals
 
     # save image to the disk
-    def save_images(self, webpage, visuals, image_path):        
-        visuals = self.convert_visuals_to_numpy(visuals)        
+    def save_images(self, webpage, visuals, image_path, min_val, max_val):        
+        visuals = self.convert_visuals_to_numpy(visuals, min_val, max_val)        
         
         image_dir = webpage.get_image_dir()
         short_path = ntpath.basename(image_path[0])

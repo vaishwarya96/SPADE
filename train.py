@@ -57,7 +57,9 @@ for epoch in iter_counter.training_epochs():
                                    ('color_real_image', data_i['color']),
                                    ('input_path', data_i['input']),
                                    ])
-            visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far)
+            min_value = data_i['input_min']
+            max_value = data_i['input_max']
+            visualizer.display_current_results(visuals, epoch, iter_counter.total_steps_so_far, min_value, max_value)
 
         if iter_counter.needs_saving():
             print('saving the latest model (epoch %d, total_steps %d)' %
