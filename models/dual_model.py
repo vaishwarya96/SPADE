@@ -185,7 +185,23 @@ class DualModel(torch.nn.Module):
                 input_semantics, fake_color_image, color_image, input_image)        #Surface generator loss
         G_losses['GAN_surface'] = self.criterionGAN(pred_fake_surface, True,
                                             for_discriminator=False)
-        G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
+        #G_losses['surface_L1'] = self.criterionFeat(fake_surface_image, surface_image) * 10.0          #Include it in a variable
+        if not self.opt.no_ganFeat_loss:
+            num_D = len(pred_fake_color)
+            GAN_Feat_loss = self.FloatTensor(1).fill_(0)
+            for i in range(num_D):  # for each discriminator
+                # last output is the final prediction, so we exclude it
+                num_intermediate_outputs = len(pred_fake_color[i]) - 1
+                for j in range(num_intermediate_outputs):  # for each layer output
+                    unweighted_loss = self.criterionFeat(
+                        pred_fake_color[i][j], pred_real_color[i][j].detach())
+                    GAN_Feat_loss += unweighted_loss * self.opt.lambda_feat / num_D
+            G_losses['GAN_Feat_surface'] = GAN_Feat_loss
+
+        if not self.opt.no_vgg_loss:
+            G_losses['VGG_surface'] = self.criterionVGG(fake_color_image, color_image) \
+                * self.opt.lambda_vgg
+
 
         #Color generator loss
         G_losses['GAN_color'] = self.criterionGAN(pred_fake_color, True, 
