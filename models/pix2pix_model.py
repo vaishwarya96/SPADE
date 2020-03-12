@@ -8,7 +8,7 @@ import models.networks as networks
 import util.util as util
 from torch.autograd import Variable
 import numpy as np
-from opensimplex import OpenSimplex
+#from opensimplex import OpenSimplex
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -227,10 +227,10 @@ class Pix2PixModel(torch.nn.Module):
 
 
         h, w = self.opt.crop_size, self.opt.crop_size
-        noise = self.gen_perlin(w , h)
-        noise_tensor = torch.FloatTensor(noise).cuda()
+        #noise = self.gen_perlin(w , h)
+        #noise_tensor = torch.FloatTensor(noise).cuda()
 
-        input_semantics = (0.5 + noise_tensor/2) * input_semantics
+        #input_semantics = (0.5 + noise_tensor/2) * input_semantics
         #print(input_semantics)
 
         fake_image = self.netG(input_semantics, z=z)
