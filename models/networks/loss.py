@@ -6,7 +6,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.networks.architecture import VGG19
+from models.networks.architecture import VGG19, VGG19_surface
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
@@ -103,6 +103,20 @@ class VGGLoss(nn.Module):
     def __init__(self, gpu_ids):
         super(VGGLoss, self).__init__()
         self.vgg = VGG19().cuda()
+        self.criterion = nn.L1Loss()
+        self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
+
+    def forward(self, x, y):
+        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
+        loss = 0
+        for i in range(len(x_vgg)):
+            loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
+        return loss
+
+class VGG_surfaceLoss(nn.Module):
+    def __init__(self, gpu_ids):
+        super(VGG_surfaceLoss, self).__init__()
+        self.vgg = VGG19_surface().cuda()
         self.criterion = nn.L1Loss()
         self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
