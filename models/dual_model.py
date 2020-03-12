@@ -3,7 +3,7 @@ import models.networks as networks
 import util.util as util
 from torch.autograd import Variable
 import numpy as np
-from opensimplex import OpenSimplex
+#from opensimplex import OpenSimplex
 
 class DualModel(torch.nn.Module):
     @staticmethod
@@ -116,7 +116,7 @@ class DualModel(torch.nn.Module):
     # preprocess the input, such as moving the tensors to GPUs and
     # transforming the label map to one-hot encoding
     # |data|: dictionary of the input data
-
+    '''
     def gen_perlin(self,w,h):
         fct = OpenSimplex(np.random.randint(1000000))
         heights = np.zeros((w,h))
@@ -124,7 +124,7 @@ class DualModel(torch.nn.Module):
             for j in range(h):
                 heights[i,j] = (fct.noise2d(i,j)+1)/2
         return heights
-
+    '''
     def preprocess_input(self, data):
         # move to GPU and change data types
 
@@ -275,10 +275,10 @@ class DualModel(torch.nn.Module):
 
 
         h, w = self.opt.crop_size, self.opt.crop_size
-        noise = self.gen_perlin(w , h)
-        noise_tensor = torch.FloatTensor(noise).cuda()
+        #noise = self.gen_perlin(w , h)
+        #noise_tensor = torch.FloatTensor(noise).cuda()
 
-        input_semantics = (0.5 + noise_tensor/2) * input_semantics
+        #input_semantics = (0.5 + noise_tensor/2) * input_semantics
         
         fake_surface_image, fake_color_image = self.netG(input_semantics, input_image, z=z)
 
