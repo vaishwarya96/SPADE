@@ -99,7 +99,7 @@ class DualModel(torch.nn.Module):
         netG = networks.define_G(opt)
         opt.input_nc = 2
         netD1 = networks.define_D(opt) if opt.isTrain else None
-        opt.input_nc = 7
+        opt.input_nc = 3 + opt.label_nc + 1
         netD2 = networks.define_D(opt) if opt.isTrain else None
         netE = networks.define_E(opt) if opt.use_vae else None
 
@@ -162,8 +162,8 @@ class DualModel(torch.nn.Module):
         # concatenate instance map if it exists
         if not self.opt.no_instance:
             inst_map = data['instance']
-            instance_edge_map = self.get_edges(inst_map)
-            input_semantics = torch.cat((input_semantics, instance_edge_map), dim=1)
+            #instance_edge_map = self.get_edges(inst_map)
+            input_semantics = torch.cat((input_semantics, inst_map), dim=1)
 
         return input_semantics, data['surface'], data['color'], data['input']
 
