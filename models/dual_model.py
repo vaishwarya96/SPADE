@@ -175,8 +175,8 @@ class DualModel(torch.nn.Module):
 
 
 
-        if self.opt.use_vae:
-            G_losses['KLD'] = KLD_loss
+        #if self.opt.use_vae:
+        G_losses['KLD'] = KLD_loss
             #G_losses['Content'] = self.criterionContent(fake_image, input_image)
 
         pred_fake_surface, pred_real_surface = self.surface_discriminate(

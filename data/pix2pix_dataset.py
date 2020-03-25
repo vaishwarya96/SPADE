@@ -10,6 +10,7 @@ import os
 import cv2
 from torch.autograd import Variable
 import torch
+import numpy as np
 
 class Pix2pixDataset(BaseDataset):
     @staticmethod
@@ -98,6 +99,9 @@ class Pix2pixDataset(BaseDataset):
         surface = cv2.imread(surface_path,0)
         surface = cv2.resize(surface, (256, 256), cv2.INTER_NEAREST)
         #surface = surface[:,:,0]
+        gauss = np.random.normal(0,0.1,(256,256))
+
+
         if surface.max() != surface.min():
             surface = 2 * (surface - surface.min())/(surface.max() - surface.min()) - 1
         else:
@@ -135,11 +139,12 @@ class Pix2pixDataset(BaseDataset):
         transform_input = get_transform(self.opt, params)
         input_tensor = transform_input(input_img)
         '''
-        input_img = cv2.imread(input_path, 0)
+        input_img = cv2.imread(surface_path, 0)
         input_img = cv2.resize(input_img, (256,256), cv2.INTER_NEAREST)
         #input_img = input_img[:,:,0]
         min_value = input_img.min()
         max_value = input_img.max()
+
         #min_value = torch.from_numpy(input_img.min()).float()
         #max_value = torch.from_numpy(input_img.max()).float()
         if min_value != max_value:
@@ -150,6 +155,10 @@ class Pix2pixDataset(BaseDataset):
             input_img = input_img/255
             input_img = 2 * input_img  - 1
         input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
+        
+        mean = 0.0; std = 0.1;
+        noise = Variable(input_tensor.data.new(input_tensor.size()).normal_(mean, std))
+        #input_tensor = input_tensor + noise
 
         # if using instance maps
         if self.opt.no_instance:
