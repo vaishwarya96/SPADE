@@ -96,9 +96,9 @@ class Pix2pixDataset(BaseDataset):
         surface_tensor = transform_surface(surface)
         '''
         surface = cv2.imread(surface_path,0)
-        surface = cv2.resize(surface, (256, 256))
+        surface = cv2.resize(surface, (256, 256), cv2.INTER_NEAREST)
         #surface = surface[:,:,0]
-        if surface.max()!= surface.min():
+        if surface.max() != surface.min():
             surface = 2 * (surface - surface.min())/(surface.max() - surface.min()) - 1
         else:
             surface = surface/255
@@ -119,7 +119,7 @@ class Pix2pixDataset(BaseDataset):
         '''
 
         color = cv2.imread(color_path)
-        color = cv2.resize(color, (256, 256))
+        color = cv2.resize(color, (256, 256), cv2.INTER_NEAREST)
         color = color / 255.0
         color = 2 * color - 1
         color_tensor = torch.from_numpy(color.transpose((2,0,1))).float()
@@ -136,7 +136,7 @@ class Pix2pixDataset(BaseDataset):
         input_tensor = transform_input(input_img)
         '''
         input_img = cv2.imread(input_path, 0)
-        input_img = cv2.resize(input_img, (256,256))
+        input_img = cv2.resize(input_img, (256,256), cv2.INTER_NEAREST)
         #input_img = input_img[:,:,0]
         min_value = input_img.min()
         max_value = input_img.max()
@@ -145,8 +145,8 @@ class Pix2pixDataset(BaseDataset):
         if min_value != max_value:
             input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
         else:
-            print("hiiiiii")
-            print(input_path)
+            #print("hiiiiii")
+            #print(input_path)
             input_img = input_img/255
             input_img = 2 * input_img  - 1
         input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
@@ -158,7 +158,7 @@ class Pix2pixDataset(BaseDataset):
             instance_path = self.instance_paths[index]
             #instance = Image.open(instance_path)
             instance = cv2.imread(instance_path, -1)
-            instance = cv2.resize(instance, (256,256))
+            instance = cv2.resize(instance, (256,256), cv2.INTER_NEAREST)
             instance_tensor = instance/65535
             instance_tensor = 2 * instance_tensor - 1
             instance_tensor = torch.from_numpy(instance_tensor).float().unsqueeze(0)

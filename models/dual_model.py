@@ -97,9 +97,9 @@ class DualModel(torch.nn.Module):
 
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
-        opt.input_nc = 2
+        opt.input_nc = 2 + opt.label_nc
         netD1 = networks.define_D(opt) if opt.isTrain else None
-        opt.input_nc = 3 + opt.label_nc + 1
+        opt.input_nc = 3 + opt.label_nc 
         netD2 = networks.define_D(opt) if opt.isTrain else None
         netE = networks.define_E(opt) if opt.use_vae else None
 
@@ -292,8 +292,8 @@ class DualModel(torch.nn.Module):
 
     def surface_discriminate(self, input_semantics, fake_image, real_image, input_image):
 
-        fake_concat = torch.cat([fake_image, input_image], dim=1)
-        real_concat = torch.cat([real_image, input_image], dim=1)
+        fake_concat = torch.cat([fake_image, input_image, input_semantics], dim=1)
+        real_concat = torch.cat([real_image, input_image, input_semantics], dim=1)
 
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate
