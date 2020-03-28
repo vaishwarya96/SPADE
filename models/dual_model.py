@@ -76,7 +76,7 @@ class DualModel(torch.nn.Module):
         if opt.no_TTUR:
             G_lr, D_lr = opt.lr, opt.lr
         else:
-            G_lr, D_lr = opt.lr / 2, opt.lr * 2
+            G_lr, D_lr = opt.lr / 2, opt.lr / 4
 
         optimizer_G = torch.optim.Adam(G_params, lr=G_lr, betas=(beta1, beta2))
         optimizer_D1 = torch.optim.Adam(D1_params, lr=D_lr, betas=(beta1, beta2))
@@ -97,7 +97,7 @@ class DualModel(torch.nn.Module):
 
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
-        opt.input_nc = 2 + opt.label_nc
+        opt.input_nc = 1
         netD1 = networks.define_D(opt) if opt.isTrain else None
         opt.input_nc = 3 + opt.label_nc 
         netD2 = networks.define_D(opt) if opt.isTrain else None
@@ -175,8 +175,8 @@ class DualModel(torch.nn.Module):
 
 
 
-        #if self.opt.use_vae:
-        G_losses['KLD'] = KLD_loss
+        if self.opt.use_vae:
+            G_losses['KLD'] = KLD_loss
             #G_losses['Content'] = self.criterionContent(fake_image, input_image)
 
         pred_fake_surface, pred_real_surface = self.surface_discriminate(
@@ -292,8 +292,8 @@ class DualModel(torch.nn.Module):
 
     def surface_discriminate(self, input_semantics, fake_image, real_image, input_image):
 
-        fake_concat = torch.cat([fake_image, input_image, input_semantics], dim=1)
-        real_concat = torch.cat([real_image, input_image, input_semantics], dim=1)
+        fake_concat = torch.cat([fake_image], dim=1)
+        real_concat = torch.cat([real_image], dim=1)
 
         # In Batch Normalization, the fake and real images are
         # recommended to be in the same batch to avoid disparate

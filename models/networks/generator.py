@@ -38,29 +38,29 @@ class DualGenerator(BaseNetwork):
             self.fc_surface = nn.Conv2d(3, 16 * nf, 3, padding=1)
         '''
 
-        self.surface_down_0 = NormalResnetBlock(1, 1 * nf, opt)
-        self.surface_down_1 = NormalResnetBlock(1 * nf, 2 * nf, opt)
-        self.surface_down_2 = NormalResnetBlock(2 * nf, 4 * nf, opt)
-        self.surface_down_3 = NormalResnetBlock(4 * nf, 8 * nf, opt)
-        self.surface_down_4 = NormalResnetBlock(8 * nf, 16 * nf, opt)
+        self.surface_down_0 = SPADEResnetBlock(1, 1 * nf, opt)
+        self.surface_down_1 = SPADEResnetBlock(1 * nf, 2 * nf, opt)
+        self.surface_down_2 = SPADEResnetBlock(2 * nf, 4 * nf, opt)
+        self.surface_down_3 = SPADEResnetBlock(4 * nf, 8 * nf, opt)
+        self.surface_down_4 = SPADEResnetBlock(8 * nf, 16 * nf, opt)
 
 
-        self.head_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                          
+        self.head_0_surface = SPADEResnetBlock(16 * nf, 16 * nf, opt)                          
 
-        self.G_middle_0_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                       
-        self.G_middle_1_surface = NormalResnetBlock(16 * nf, 16 * nf, opt)                  
+        self.G_middle_0_surface = SPADEResnetBlock(16 * nf, 16 * nf, opt)                       
+        self.G_middle_1_surface = SPADEResnetBlock(16 * nf, 16 * nf, opt)                  
         
         
         #Surface geneator layers
-        self.surface_up_0 = NormalResnetBlock(16 * nf, 8 * nf, opt)
-        self.surface_up_1 = NormalResnetBlock(8 * nf, 4 * nf, opt)
-        self.surface_up_2 = NormalResnetBlock(4 * nf, 2 * nf, opt)
-        self.surface_up_3 = NormalResnetBlock(2 * nf, 1 * nf, opt)
+        self.surface_up_0 = SPADEResnetBlock(16 * nf, 8 * nf, opt)
+        self.surface_up_1 = SPADEResnetBlock(8 * nf, 4 * nf, opt)
+        self.surface_up_2 = SPADEResnetBlock(4 * nf, 2 * nf, opt)
+        self.surface_up_3 = SPADEResnetBlock(2 * nf, 1 * nf, opt)
 
         final_nc = nf
 
         if opt.num_upsampling_layers == 'most':
-            self.surface_up_4 = NormalResnetBlock(1 * nf, nf // 2, opt)
+            self.surface_up_4 = SPADEResnetBlock(1 * nf, nf // 2, opt)
             final_nc = nf // 2
 
         self.surface_conv_img = nn.Conv2d(final_nc, 1, 3, padding=1)
@@ -153,50 +153,50 @@ class DualGenerator(BaseNetwork):
         '''
         #Branch1 (surface generator)
 
-        x = self.surface_down_0(input_image)
+        x = self.surface_down_0(input_image, seg)
         x = self.down(x)
 
-        x = self.surface_down_1(x)
+        x = self.surface_down_1(x,seg)
         x = self.down(x)
 
-        x = self.surface_down_2(x)
+        x = self.surface_down_2(x,seg)
         x = self.down(x)
 
-        x = self.surface_down_3(x)
+        x = self.surface_down_3(x,seg)
         x = self.down(x)
 
-        x = self.surface_down_4(x)
+        x = self.surface_down_4(x,seg)
         x = self.down(x)
 
-        x = self.head_0_surface(x)
+        x = self.head_0_surface(x,seg)
         x = self.up(x)
-        x = self.G_middle_0_surface(x)
+        x = self.G_middle_0_surface(x,seg)
 
         if self.opt.num_upsampling_layers == 'more' or self.opt.num_upsampling_layers == 'most':
             x = self.up(x)
 
-        x = self.G_middle_1_surface(x)
+        x = self.G_middle_1_surface(x,seg)
         x = self.up(x)
 
-        b1x1 = self.surface_up_0(x)
+        b1x1 = self.surface_up_0(x,seg)
         b1x1_conv = self.b1x1_conv(b1x1)
 
         b1x2 = self.up(b1x1)
-        b1x2 = self.surface_up_1(b1x2)
+        b1x2 = self.surface_up_1(b1x2,seg)
         b1x2_conv = self.b1x2_conv(b1x2)
 
         b1x3 = self.up(b1x2)
-        b1x3 = self.surface_up_2(b1x3)
+        b1x3 = self.surface_up_2(b1x3,seg)
         b1x3_conv = self.b1x3_conv(b1x3)
 
         b1x4 = self.up(b1x3)
-        b1x4 = self.surface_up_3(b1x4)
+        b1x4 = self.surface_up_3(b1x4,seg)
         b1x4_conv = self.b1x4_conv(b1x4)
         
         surface = b1x4
         if self.opt.num_upsampling_layers == 'most':
             b1x5 = self.up(b1x4)
-            b1x5 = self.surface_up_4(b1x5)
+            b1x5 = self.surface_up_4(b1x5,seg)
             b1x5_conv = self.b1x5_conv(b1x5)
 
             surface = self.surface_conv_img(F.leaky_relu(b1x5, 2e-1))

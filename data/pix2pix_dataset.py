@@ -156,9 +156,9 @@ class Pix2pixDataset(BaseDataset):
             input_img = 2 * input_img  - 1
         input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
         
-        mean = 0.0; std = 0.1;
+        mean = 0.0; std = 0.3;
         noise = Variable(input_tensor.data.new(input_tensor.size()).normal_(mean, std))
-        #input_tensor = input_tensor + noise
+        input_tensor = input_tensor + noise
 
         # if using instance maps
         if self.opt.no_instance:
