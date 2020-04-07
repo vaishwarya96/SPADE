@@ -56,7 +56,8 @@ class CustomDataset(Pix2pixDataset):
             instance_paths = make_dataset(instance_dir, recursive=False, read_cache=True)
         else:
             instance_paths = []
-
+            
+        print(len(label_paths), len(surface_paths), len(color_paths), len(input_paths), len(instance_paths))     
         assert len(label_paths) == len(surface_paths) == len(color_paths) == len(input_paths), "The #images in %s and %s do not match. Is there something wrong?"
         
         return label_paths, surface_paths, color_paths, input_paths, instance_paths

@@ -10,7 +10,9 @@ import data
 from util.iter_counter import IterationCounter
 from util.visualizer import Visualizer
 from trainers.pix2pix_trainer import Pix2PixTrainer, DualTrainer
+import torch
 
+torch.cuda.set_enabled_lms(True)
 # parse options
 opt = TrainOptions().parse()
 

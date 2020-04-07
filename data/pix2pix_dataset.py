@@ -139,7 +139,7 @@ class Pix2pixDataset(BaseDataset):
         transform_input = get_transform(self.opt, params)
         input_tensor = transform_input(input_img)
         '''
-        input_img = cv2.imread(surface_path, 0)
+        input_img = cv2.imread(input_path, 0)
         input_img = cv2.resize(input_img, (256,256), cv2.INTER_NEAREST)
         #input_img = input_img[:,:,0]
         min_value = input_img.min()
@@ -158,7 +158,7 @@ class Pix2pixDataset(BaseDataset):
         
         mean = 0.0; std = 0.3;
         noise = Variable(input_tensor.data.new(input_tensor.size()).normal_(mean, std))
-        input_tensor = input_tensor + noise
+        #input_tensor = input_tensor + noise
 
         # if using instance maps
         if self.opt.no_instance:
