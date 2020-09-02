@@ -1,8 +1,3 @@
-"""
-Copyright (C) 2019 NVIDIA Corporation.  All rights reserved.
-Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
-"""
-
 from data.base_dataset import BaseDataset, get_params, get_transform
 from PIL import Image
 import util.util as util
@@ -96,7 +91,8 @@ class Pix2pixDataset(BaseDataset):
         surface_tensor = transform_surface(surface)
         '''
         surface = cv2.imread(surface_path, -1)
-        surface = surface[:,:,0]
+        #surface = surface[:,:,0]
+        surface = cv2.resize(surface, (256,256))
         surface = 2 * (surface - surface.min())/(surface.max() - surface.min()) - 1
         surface_tensor = torch.from_numpy(surface).float().unsqueeze(0)
 
@@ -114,6 +110,7 @@ class Pix2pixDataset(BaseDataset):
         '''
 
         color = cv2.imread(color_path)
+        color = cv2.resize(color,(256,256))
         color = color / 255.0
         color = 2 * color - 1
         color_tensor = torch.from_numpy(color.transpose((2,0,1))).float()
@@ -130,7 +127,8 @@ class Pix2pixDataset(BaseDataset):
         input_tensor = transform_input(input_img)
         '''
         input_img = cv2.imread(input_path, -1)
-        input_img = input_img[:,:,0]
+        input_img = cv2.resize(input_img, (256,256))
+        #input_img = input_img[:,:,0]
         min_value = input_img.min()
         max_value = input_img.max()
         #min_value = torch.from_numpy(input_img.min()).float()

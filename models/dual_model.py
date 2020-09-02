@@ -97,9 +97,9 @@ class DualModel(torch.nn.Module):
 
     def initialize_networks(self, opt):
         netG = networks.define_G(opt)
-        opt.input_nc = 2
+
         netD1 = networks.define_D(opt) if opt.isTrain else None
-        opt.input_nc = 7
+        opt.input_nc = 
         netD2 = networks.define_D(opt) if opt.isTrain else None
         netE = networks.define_E(opt) if opt.use_vae else None
 
