@@ -88,15 +88,15 @@ def tensor2imsurface(image_tensor, min_val, max_val, imtype=np.uint16, normalize
     #    image_tensor = image_tensor.unsqueeze(0)
     image_numpy = image_tensor.detach().cpu().float().numpy()
     if normalize:
-        image_numpy = float(min_val) + (image_numpy + 1) * (float(max_val) - float(min_val)) / 2
-        image_numpy = np.transpose(image_numpy, (1,2,0))
-        #image_numpy = (np.transpose(image_numpy, (1,2,0)) + 1)/2.0 * 255.0
+        #image_numpy = float(min_val) + (image_numpy + 1) * (float(max_val) - float(min_val)) / 2
+        #image_numpy = np.transpose(image_numpy, (1,2,0))
+        image_numpy = (np.transpose(image_numpy, (1,2,0)) + 1)/2.0 * 65535.0
     else:
         image_numpy = np.transpose(image_numpy, (1, 2, 0)) * 255.0
-    image_numpy = np.clip(image_numpy, 0, 255)
+    image_numpy = np.clip(image_numpy, 0, 65535)
     #if image_numpy.shape[2] == 1:
     #    image_numpy = image_numpy[:, :, 0]
-    return image_numpy.astype(np.uint8)
+    return image_numpy.astype(np.uint16)
 
 def tensor2imcolor(image_tensor, imtype=np.uint8, normalize=True, tile=False):
     if isinstance(image_tensor, list):

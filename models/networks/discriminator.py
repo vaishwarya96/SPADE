@@ -109,6 +109,7 @@ class NLayerDiscriminator(BaseNetwork):
         input_nc += 2
 
         input_nc = opt.input_nc
+   
 
         return input_nc
 

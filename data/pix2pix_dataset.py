@@ -96,7 +96,7 @@ class Pix2pixDataset(BaseDataset):
         transform_surface = get_transform(self.opt, params)
         surface_tensor = transform_surface(surface)
         '''
-        surface = cv2.imread(surface_path,0)
+        surface = cv2.imread(surface_path,-1)
         surface = cv2.resize(surface, (256, 256), cv2.INTER_NEAREST)
         #surface = surface[:,:,0]
         gauss = np.random.normal(0,0.1,(256,256))
@@ -105,7 +105,7 @@ class Pix2pixDataset(BaseDataset):
         if surface.max() != surface.min():
             surface = 2 * (surface - surface.min())/(surface.max() - surface.min()) - 1
         else:
-            surface = surface/255
+            surface = surface/65535
             surface = 2 * surface - 1
         surface_tensor = torch.from_numpy(surface).float().unsqueeze(0)
 
@@ -139,7 +139,7 @@ class Pix2pixDataset(BaseDataset):
         transform_input = get_transform(self.opt, params)
         input_tensor = transform_input(input_img)
         '''
-        input_img = cv2.imread(input_path, 0)
+        input_img = cv2.imread(input_path, -1)
         input_img = cv2.resize(input_img, (256,256), cv2.INTER_NEAREST)
         #input_img = input_img[:,:,0]
         min_value = input_img.min()
@@ -147,13 +147,13 @@ class Pix2pixDataset(BaseDataset):
 
         #min_value = torch.from_numpy(input_img.min()).float()
         #max_value = torch.from_numpy(input_img.max()).float()
-        if min_value != max_value:
-            input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
-        else:
+        #if min_value != max_value:
+        #    input_img = 2 * (input_img - input_img.min())/(input_img.max() - input_img.min()) - 1
+        #else:
             #print("hiiiiii")
             #print(input_path)
-            input_img = input_img/255
-            input_img = 2 * input_img  - 1
+        input_img = input_img/65535
+        input_img = 2 * input_img  - 1
         input_tensor = torch.from_numpy(input_img).float().unsqueeze(0)
         
         mean = 0.0; std = 0.3;
@@ -178,7 +178,7 @@ class Pix2pixDataset(BaseDataset):
             #else:
             #instance_tensor = transform_label(instance)
 
-        #print(image_tensor - input_
+        #print(input_tensor.shape)
 
         input_dict = {'label': label_tensor,
                       'instance': instance_tensor,

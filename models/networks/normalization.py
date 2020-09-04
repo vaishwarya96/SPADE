@@ -140,6 +140,7 @@ class SPADE(nn.Module):
         normalized = self.param_free_norm(x)
 
         # Part 2. produce scaling and bias conditioned on semantic map
+        #print(x.size())
         segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
         segmap_shape = segmap.shape[2]
         #print(other_channels)
